@@ -77,7 +77,8 @@ typedef enum {
     picoquic_bbr_alg_probe_bw_refill,
     picoquic_bbr_alg_probe_bw_up,
     picoquic_bbr_alg_probe_rtt,
-    picoquic_bbr_alg_startup_long_rtt
+    picoquic_bbr_alg_startup_long_rtt,
+    picoquic_bbr_alg_startup_resume
 } picoquic_bbr_alg_state_t;
 
 typedef enum {
@@ -89,8 +90,9 @@ typedef enum {
 
 /* Constants in BBRv3 */
 #define BBRPacingMarginPercent 1 /* discount factor of 1% used to scale BBR.bw to produce BBR.pacing_rate */
-#define BBRStartupPacingGain 2.77 /* constant, 4*ln(2), approx 2.77 */
-#define BBRStartupCwndGain 2.0 /* constant */
+
+
+
 
 #define BBRLossThresh 0.2 /* maximum tolerated packet loss (default: 20%) */
 #define BBRBeta 0.7 /* Multiplicative decrease on packet loss (default: 0.7) */
@@ -105,6 +107,14 @@ typedef enum {
 #define BBRProbeRTTDuration 200000 /* 200msec, 200000 microsecs */
 #define BBRProbeRTTInterval 5000000 /* 5 seconds */
 
+#define BBRStartupPacingGain 2.77 /* constant, 4*ln(2), approx 2.77 */
+#define BBRStartupCwndGain 2.0 /* constant */
+#define BBRStartupIncreaseThreshold 1.25
+
+#define BBRStartupResumePacingGain 1.25 /* arbitrary */
+#define BBRStartupResumeCwndGain 1.25 /* arbitrary */
+#define BBRStartupResumeIncreaseThreshold 1.125
+
 #define BBRProbeBwDownPacingGain 0.9
 #define BBRProbeBwDownCwndGain 2.0
 #define BBRProbeBwCruisePacingGain 1.0
@@ -113,8 +123,11 @@ typedef enum {
 #define BBRProbeBwRefillCwndGain 2.0
 #define BBRProbeBwUpPacingGain 1.25
 #define BBRProbeBwUpCwndGain 2.25
+
 #define BBRMinRttMarginPercent 5 /* Margin factor of 20% for avoiding firing RTT Probe too often */
 #define BBRLongRttThreshold 250000
+
+#define BBRExcessiveEcnCE 0.2
 
 typedef struct st_picoquic_bbr_state_t {
     /* Algorithm state: */
@@ -200,15 +213,22 @@ typedef struct st_picoquic_bbr_state_t {
     uint64_t recovery_packet_number;
     uint64_t recovery_delivered;
 
+    /* Management of ECN marks */
+    uint64_t ecn_ect1_last_round;
+    uint64_t ecn_ce_last_round;
+    double ecn_alpha;
+
     /* Per connection random state.*/
     uint64_t random_context;
 
     /* manage startup long_rtt */
     picoquic_min_max_rtt_t rtt_filter;
     uint64_t bdp_seed;
+    unsigned int probe_bdp_seed;
     
     /* Experimental extensions, may or maynot be a good idea. */
     uint64_t wifi_shadow_rtt; /* Shadow RTT used for wifi connections. */
+    double quantum_ratio; /* allow application to use a different default than 0.1% of bandwidth (or 1ms of traffic) */
 
 } picoquic_bbr_state_t;
 
@@ -249,6 +269,10 @@ typedef struct st_bbr_per_ack_state_t {
     uint64_t newly_lost; /* volume of data marked lost on ack received */
     uint64_t tx_in_flight; /* estimate of in flight data at the time the packet was sent. */
     uint64_t lost; /* volume lost between transmission of packet and arrival of ACK */
+    /* Tracking of ECN */
+    uint64_t ecn_ce;
+    double ecn_frac;
+    double ecn_alpha;
     /* Part of "RS" struct */
     unsigned int is_app_limited : 1; /* App marked limited at time of ACK? */
     unsigned int is_cwnd_limited : 1;
@@ -265,6 +289,7 @@ static void BBRStartProbeBW_CRUISE(picoquic_bbr_state_t* bbr_state);
 static void BBRStartProbeBW_REFILL(picoquic_bbr_state_t* bbr_state, picoquic_path_t * path_x);
 static void BBREnterStartup(picoquic_bbr_state_t* bbr_state);
 static void BBRReEnterStartup(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, uint64_t current_time);
+static void BBRCheckStartupHighLoss(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t* rs);
 static void BBRUpdateRound(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x);
 static void BBRStartRound(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x);
 static void BBRSetRsFromAckState(picoquic_path_t* path_x, picoquic_per_ack_state_t* ack_state, bbr_per_ack_state_t* rs);
@@ -281,7 +306,9 @@ static uint64_t BBRInflightWithBw(picoquic_bbr_state_t* bbr_state, picoquic_path
 static void BBRUpdateMaxInflight(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x);
 static uint64_t BBRInflightWithHeadroom(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x);
 static uint64_t BBRBDPMultiple(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, double gain);
+static void BBRAdaptUpperBounds(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t* rs, uint64_t current_time);
 static int InLossRecovery(picoquic_bbr_state_t* bbr_state);
+static int BBRHasElapsedInPhase(picoquic_bbr_state_t* bbr_state, uint64_t interval, uint64_t current_time);
 
 /* Init processes for BBRv3 */
 
@@ -379,9 +406,12 @@ static void BBROnInit(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, 
     bbr_state->extra_acked_delivered = 0;
     /* Support for the wifi_shadow_rtt hack */
     bbr_state->wifi_shadow_rtt = path_x->cnx->quic->wifi_shadow_rtt;
+    /* Support for experimenting with the send_quantum ratio */
+    bbr_state->quantum_ratio = path_x->cnx->quic->bbr_quantum_ratio;
+    if (bbr_state->quantum_ratio == 0) {
+        bbr_state->quantum_ratio = 0.001;
+    }
 
-    /* TODO, maybe: plug in the "shadow RTT".
-     */
     BBRResetCongestionSignals(bbr_state);
     BBRResetLowerBounds(bbr_state);
     BBRInitRoundCounting(bbr_state, path_x);
@@ -496,6 +526,10 @@ static void BBRSetCwnd(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x,
                 path_x->cwin = bbr_state->max_inflight;
             }
         }
+        else if (bbr_state->state == picoquic_bbr_alg_startup_resume &&
+            bbr_state->bdp_seed > path_x->cwin) {
+            path_x->cwin = bbr_state->bdp_seed;
+        }
         else if (path_x->cwin < bbr_state->max_inflight || path_x->delivered < PICOQUIC_CWIN_INITIAL) {
             path_x->cwin = path_x->cwin+ rs->newly_acked;
         }
@@ -578,12 +612,17 @@ static void BBROnEnterRTO(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path
 static void BBROnExitRecovery(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, uint64_t current_time)
 {
     if (bbr_state->is_in_recovery) {
+        path_x->bandwidth_estimate_max = 0;
         path_x->cwin = BBRRestoreCwnd(bbr_state, path_x);
         bbr_state->recovery_packet_number = UINT64_MAX;
         bbr_state->packet_conservation = 0;
 
         if (bbr_state->is_pto_recovery) {
             BBRReEnterStartup(bbr_state, path_x, current_time);
+        }
+        else if(bbr_state->state == picoquic_bbr_alg_probe_bw_up) {
+            /* Perform same processing as after encountering a high loss */
+            BBRStartProbeBW_DOWN(bbr_state, path_x, current_time);
         }
         bbr_state->recovery_delivered = path_x->delivered;
         bbr_state->is_in_recovery = 0;
@@ -621,7 +660,6 @@ static void BBRCheckRecovery(picoquic_bbr_state_t* bbr_state, picoquic_path_t* p
         }
     }
 }
-
 
 /* Computing the congestion window */
 static uint64_t BBRBDPMultipleWithBw(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, double gain, uint64_t bw)
@@ -678,12 +716,19 @@ static void BBRUpdateMaxInflight(picoquic_bbr_state_t* bbr_state, picoquic_path_
     * BBRUpdateModelAndState(). There is probably no need to do an extra
     * call here. */
     uint64_t inflight = BBRBDPMultiple(bbr_state, path_x, bbr_state->cwnd_gain);
+
     inflight += bbr_state->extra_acked;
 
     if (bbr_state->min_rtt < bbr_state->wifi_shadow_rtt && bbr_state->min_rtt > 0){
         inflight = (uint64_t)(((double)inflight) * ((double)bbr_state->wifi_shadow_rtt) / ((double)bbr_state->min_rtt));
     }
     bbr_state->max_inflight = BBRQuantizationBudget(bbr_state, path_x, inflight);
+#if 0
+    if (bbr_state->state == picoquic_bbr_alg_startup &&
+        bbr_state->bdp_seed > bbr_state->max_inflight) {
+        bbr_state->max_inflight = bbr_state->bdp_seed;
+    }
+#endif
 }
 
 /* Pacing rate functions */
@@ -701,6 +746,16 @@ static void BBRInitPacingRate(picoquic_bbr_state_t* bbr_state, picoquic_path_t* 
 static void BBRSetPacingRateWithGain(picoquic_bbr_state_t* bbr_state, double pacing_gain)
 {
     double rate = pacing_gain * ((double)(bbr_state->bw * (100 - BBRPacingMarginPercent))) / (double)100;
+
+    if (bbr_state->state == picoquic_bbr_alg_startup_resume &&
+        !bbr_state->filled_pipe &&
+        bbr_state->bdp_seed > 0) {
+        double bdp_rate = (((double)bbr_state->bdp_seed*1000000.0) / (double)bbr_state->min_rtt);
+        if (bdp_rate > rate) {
+            rate = bdp_rate;
+        }
+    }
+
     if (bbr_state->filled_pipe || rate > bbr_state->pacing_rate) {
         bbr_state->pacing_rate = rate;
     }
@@ -719,7 +774,7 @@ static void BBRSetSendQuantum(picoquic_bbr_state_t* bbr_state, picoquic_path_t* 
         floor = 1 * path_x->send_mtu;
     }
     /* 1 ms = 1000000us/1000 */
-    bbr_state->send_quantum = (uint64_t)(bbr_state->pacing_rate / 1000.0); 
+    bbr_state->send_quantum = (uint64_t)(bbr_state->pacing_rate * bbr_state->quantum_ratio); 
     if (bbr_state->send_quantum > 0x10000) {
         bbr_state->send_quantum = 0x10000;
     }
@@ -886,11 +941,20 @@ static void BBRUpdateACKAggregation(picoquic_bbr_state_t* bbr_state, picoquic_pa
 */
 static int IsInflightTooHigh(picoquic_bbr_state_t* bbr_state, picoquic_path_t * path_x, bbr_per_ack_state_t* rs)
 {
-    uint64_t rs_delivered = path_x->delivered - rs->delivered;
-    return (
-        rs_delivered > bbr_state->recovery_delivered &&
-        rs->lost > (uint64_t)(((double)rs->tx_in_flight) * BBRLossThresh) &&
-        rs->lost > 3*path_x->send_mtu);
+    if (rs->ecn_alpha > BBRExcessiveEcnCE) {
+        return 1;
+    }
+    else {
+        uint64_t rs_delivered = path_x->delivered - rs->delivered;
+        if (rs_delivered > bbr_state->recovery_delivered &&
+            rs->lost > (uint64_t)(((double)rs->tx_in_flight) * BBRLossThresh) &&
+            rs->lost > 3 * path_x->send_mtu) {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+    }
 }
 
 static void BBRHandleInflightTooHigh(picoquic_bbr_state_t* bbr_state, picoquic_path_t * path_x, bbr_per_ack_state_t* rs, uint64_t current_time)
@@ -1097,15 +1161,17 @@ static void BBRHandleProbeRTT(picoquic_bbr_state_t* bbr_state, picoquic_path_t *
         /* Wait for at least ProbeRTTDuration to elapse: */
         bbr_state->probe_rtt_done_stamp =
             current_time + BBRProbeRTTDuration;
-            /* Wait for at least one round to elapse: */
+        /* Wait for at least one round to elapse: */
         bbr_state->probe_rtt_round_done = 0;
-            BBRStartRound(bbr_state, path_x);
+        BBRStartRound(bbr_state, path_x);
     }
     else if (bbr_state->probe_rtt_done_stamp != 0) {
-        if (bbr_state->round_start)
+        if (bbr_state->round_start) {
             bbr_state->probe_rtt_round_done = 1;
-        if (bbr_state->probe_rtt_round_done)
+        }
+        if (bbr_state->probe_rtt_round_done) {
             BBRCheckProbeRTTDone(bbr_state, path_x, current_time);
+        }
     }
 }
 
@@ -1393,7 +1459,8 @@ static void BBRUpdateProbeBWCyclePhase(picoquic_bbr_state_t* bbr_state, picoquic
         if (BBRCheckTimeToProbeBW(bbr_state, path_x, current_time))
             return; /* already decided state transition */
         if (BBRCheckTimeToCruise(bbr_state, path_x)) {
-            if (15 * bbr_state->max_bw >= 16 * bbr_state->full_bw) {
+            if (15 * bbr_state->max_bw >= 16 * bbr_state->full_bw &&
+                rs->ecn_alpha <= BBRExcessiveEcnCE) {
                 /* still growing? */
                 bbr_state->full_bw = bbr_state->max_bw;    /* record new baseline level */
                 bbr_state->full_bw_count = 0;
@@ -1401,7 +1468,8 @@ static void BBRUpdateProbeBWCyclePhase(picoquic_bbr_state_t* bbr_state, picoquic
             }
             else {
                 bbr_state->full_bw_count++;
-                if (bbr_state->full_bw_count > 3) {
+                if (bbr_state->full_bw_count > 3 ||
+                    rs->ecn_alpha > BBRExcessiveEcnCE) {
                     bbr_state->probe_probe_bw_quickly = 0;
                     bbr_state->full_bw_count = 0;
                 }
@@ -1459,6 +1527,57 @@ static void BBRCheckDrain(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path
 }
 /* End of drain specific algorithms */
 
+/* Startup extension to support careful resume */
+static void BBRCheckStartupFullBandwidthGeneric(picoquic_bbr_state_t* bbr_state,
+    bbr_per_ack_state_t * rs, double threshold)
+{
+    if (bbr_state->filled_pipe ||
+        !bbr_state->round_start || rs->is_app_limited) {
+        return;  /* no need to check for a full pipe now */
+    }
+
+    if ((double)bbr_state->max_bw >= threshold*((double)bbr_state->full_bw)) {
+        /* still growing? */
+        bbr_state->full_bw = bbr_state->max_bw;    /* record new baseline level */
+        bbr_state->full_bw_count = 0;
+        return;
+    }
+    bbr_state->full_bw_count++; /* another round w/o much growth */
+    if (bbr_state->full_bw_count >= 3) {
+        bbr_state->filled_pipe = 1;
+    }
+}
+
+static void BBREnterStartupResume(picoquic_bbr_state_t* bbr_state)
+{
+    /* This code is called either when the "bdp seed" is set, or
+     * upon "Enter Startup"
+     */
+    bbr_state->state = picoquic_bbr_alg_startup_resume;
+    bbr_state->pacing_gain = BBRStartupResumePacingGain;
+    bbr_state->cwnd_gain = BBRStartupResumeCwndGain;
+}
+
+static void BBRCheckStartupResume(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t* rs, uint64_t current_time)
+{
+    if (bbr_state->state == picoquic_bbr_alg_startup_resume) {
+        BBRCheckStartupHighLoss(bbr_state, path_x, rs);
+        if (!bbr_state->filled_pipe && (double)bbr_state->max_bw > BBRStartupResumeIncreaseThreshold * bbr_state->bdp_seed) {
+            BBREnterStartup(bbr_state);
+        }
+        else {
+            BBRCheckStartupFullBandwidthGeneric(bbr_state, rs, BBRStartupResumeIncreaseThreshold);
+            if (bbr_state->filled_pipe) {
+                if (bbr_state->full_bw_count > 0) {
+                    bbr_state->probe_probe_bw_quickly = 1;
+                    bbr_state->full_bw_count = 0;
+                }
+                BBREnterDrain(bbr_state, path_x, current_time);
+            }
+        }
+    }
+}
+
 /* Startup specific processes for BBRv3 */
 static void BBRCheckStartupHighLoss(picoquic_bbr_state_t* bbr_state, picoquic_path_t * path_x, bbr_per_ack_state_t * rs)
 {
@@ -1489,10 +1608,12 @@ static void BBRCheckStartupFullBandwidth(picoquic_bbr_state_t* bbr_state,
         /* still growing? */
         bbr_state->full_bw = bbr_state->max_bw;    /* record new baseline level */
         bbr_state->full_bw_count = 0;
-        return;
+        if (rs->ecn_frac < 0.2) {
+            return;
+        }
     }
     bbr_state->full_bw_count++; /* another round w/o much growth */
-    if (bbr_state->full_bw_count >= 3) {
+    if (bbr_state->full_bw_count >= 3 || rs->ecn_frac >= 0.2) {
         bbr_state->filled_pipe = 1;
     }
 }
@@ -1500,16 +1621,17 @@ static void BBRCheckStartupFullBandwidth(picoquic_bbr_state_t* bbr_state,
 static void BBRCheckStartupDone(picoquic_bbr_state_t* bbr_state,
     picoquic_path_t * path_x, bbr_per_ack_state_t * rs, uint64_t current_time)
 {
-    BBRCheckStartupFullBandwidth(bbr_state, rs);
-    BBRCheckStartupHighLoss(bbr_state, path_x, rs);
+    if (bbr_state->state == picoquic_bbr_alg_startup) {
+        BBRCheckStartupFullBandwidth(bbr_state, rs);
+        BBRCheckStartupHighLoss(bbr_state, path_x, rs);
 
-    if (bbr_state->state == picoquic_bbr_alg_startup &&
-        bbr_state->filled_pipe) {
-        if (bbr_state->full_bw_count > 0) {
-            bbr_state->probe_probe_bw_quickly = 1;
-            bbr_state->full_bw_count = 0;
+        if (bbr_state->filled_pipe) {
+            if (bbr_state->full_bw_count > 0) {
+                bbr_state->probe_probe_bw_quickly = 1;
+                bbr_state->full_bw_count = 0;
+            }
+            BBREnterDrain(bbr_state, path_x, current_time);
         }
-        BBREnterDrain(bbr_state, path_x, current_time);
     }
 }
 
@@ -1580,7 +1702,8 @@ static void BBRExitStartupLongRtt(picoquic_bbr_state_t* bbr_state, picoquic_path
 
 void BBRCheckStartupLongRtt(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t* rs, uint64_t current_time)
 {
-    if (bbr_state->state == picoquic_bbr_alg_startup &&
+    if ((bbr_state->state == picoquic_bbr_alg_startup ||
+        bbr_state->state == picoquic_bbr_alg_startup_resume) &&
         path_x->rtt_min > BBRLongRttThreshold) {
         BBREnterStartupLongRTT(bbr_state, path_x);
     }
@@ -1590,6 +1713,9 @@ void BBRCheckStartupLongRtt(picoquic_bbr_state_t* bbr_state, picoquic_path_t* pa
 
     if (picoquic_hystart_test(&bbr_state->rtt_filter, rs->rtt_sample,
         path_x->pacing_packet_time_microsec, current_time, 0)) {
+        BBRExitStartupLongRtt(bbr_state, path_x, current_time);
+    }
+    else if (rs->ecn_alpha > BBRExcessiveEcnCE) {
         BBRExitStartupLongRtt(bbr_state, path_x, current_time);
     }
     else {
@@ -1623,6 +1749,10 @@ void BBRUpdateStartupLongRtt(picoquic_bbr_state_t* bbr_state, picoquic_path_t* p
 void BBRSetBdpSeed(picoquic_bbr_state_t* bbr_state, uint64_t bdp_seed)
 {
     bbr_state->bdp_seed = bdp_seed;
+    if (bbr_state->state == picoquic_bbr_alg_startup &&
+        bbr_state->bdp_seed > bbr_state->max_bw) {
+        BBREnterStartupResume(bbr_state);
+    }
 }
 
 /* BBRv3 per loss steps.
@@ -1687,6 +1817,82 @@ static void BBRUpdateOnLoss(picoquic_bbr_state_t* bbr_state, picoquic_path_t * p
 }
 #endif
 
+/* ECN related functions */
+static picoquic_packet_context_t* BBRAccessEcnPacketContext(picoquic_path_t* path_x)
+{
+    /* TODO: ECN counts should be a function of path, not number space! */
+    picoquic_packet_context_t* pkt_ctx = &path_x->cnx->pkt_ctx[picoquic_packet_context_application];
+
+    if (path_x->cnx->is_multipath_enabled) {
+        /* TODO: if the RCID index has changed, reset the counters. */
+        picoquic_remote_cnxid_t* r_cid = path_x->p_remote_cnxid;
+
+        if (r_cid != NULL) {
+            pkt_ctx = &r_cid->pkt_ctx;
+        }
+        else {
+            pkt_ctx = NULL;
+        }
+    }
+    else if (path_x != path_x->cnx->path[0]) {
+        /* When doing simple multipath, or when preparing transitions,
+         * only consider the default path */
+        pkt_ctx = NULL;
+    }
+
+    return pkt_ctx;
+}
+
+static void BBRComputeEcnFrac(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t * rs)
+{
+    picoquic_packet_context_t* pkt_ctx = BBRAccessEcnPacketContext(path_x);
+    uint64_t delta_ect1 = 0;
+    uint64_t delta_ce = 0;
+    rs->ecn_frac = 0.0;
+
+    if (pkt_ctx != NULL &&
+        pkt_ctx->ecn_ect1_total_remote >= bbr_state->ecn_ect1_last_round &&
+        pkt_ctx->ecn_ce_total_remote >= bbr_state->ecn_ce_last_round) {
+        if (pkt_ctx->ecn_ect1_total_remote == 0) {
+            /* Probably legacy ECN -- treat it the same way we would treat proportional ECN */
+            delta_ect1 = (rs->delivered/path_x->send_mtu);
+        }
+        else {
+            delta_ect1 = pkt_ctx->ecn_ect1_total_remote - bbr_state->ecn_ect1_last_round;
+            delta_ce = pkt_ctx->ecn_ce_total_remote - bbr_state->ecn_ce_last_round;
+#if 1
+            if (delta_ect1 == 0) {
+                DBG_PRINTF("%s", "bug");
+            }
+#endif
+        }
+        if (delta_ect1 + delta_ce > 0) {
+            rs->ecn_ce = delta_ce;
+            rs->ecn_frac = (double)delta_ce / (double)(delta_ect1 + delta_ce);
+            rs->ecn_alpha = (rs->ecn_frac + 15.0 * bbr_state->ecn_alpha) / 16.0;
+        }
+    }
+}
+
+static void BBRAdvanceEcnFrac(picoquic_bbr_state_t* bbr_state, picoquic_path_t* path_x, bbr_per_ack_state_t* rs)
+{
+    if (bbr_state->round_start) {
+        picoquic_packet_context_t* pkt_ctx = BBRAccessEcnPacketContext(path_x);
+
+        if (pkt_ctx != NULL) {
+            if (pkt_ctx->ecn_ect1_total_remote < bbr_state->ecn_ect1_last_round ||
+                pkt_ctx->ecn_ce_total_remote < bbr_state->ecn_ce_last_round) {
+                bbr_state->ecn_alpha = 0;
+            }
+            else {
+                bbr_state->ecn_alpha = (rs->ecn_frac + 15.0 * bbr_state->ecn_alpha) / 16;
+            }
+            bbr_state->ecn_ect1_last_round = pkt_ctx->ecn_ect1_total_remote;
+            bbr_state->ecn_ce_last_round = pkt_ctx->ecn_ce_total_remote;
+        }
+    }
+}
+
 /* BBRv3 per ACK steps
 * The function BBRUpdateOnACK is executed for each ACK notification on the API 
 */
@@ -1696,6 +1902,7 @@ static void BBRUpdateModelAndState(picoquic_bbr_state_t* bbr_state, picoquic_pat
     BBRUpdateCongestionSignals(bbr_state, path_x, rs);
     BBRUpdateACKAggregation(bbr_state, path_x, rs, current_time);
     BBRCheckStartupLongRtt(bbr_state, path_x, rs, current_time);
+    BBRCheckStartupResume(bbr_state, path_x, rs, current_time);
     BBRCheckStartupDone(bbr_state, path_x, rs, current_time);
     BBRCheckRecovery(bbr_state, path_x, rs, current_time);
     BBRCheckDrain(bbr_state, path_x, current_time);
@@ -1703,6 +1910,7 @@ static void BBRUpdateModelAndState(picoquic_bbr_state_t* bbr_state, picoquic_pat
     BBRUpdateMinRTT(bbr_state, path_x, rs, current_time);
     BBRCheckProbeRTT(bbr_state, path_x, rs, current_time);
     BBRAdvanceLatestDeliverySignals(bbr_state, rs);
+    BBRAdvanceEcnFrac(bbr_state, path_x, rs);
     BBRBoundBWForModel(bbr_state);
 }
 
@@ -1763,7 +1971,7 @@ static void BBRSetRsFromAckState(picoquic_path_t* path_x, picoquic_per_ack_state
     rs->lost = ack_state->nb_bytes_lost_since_packet_sent;
     rs->tx_in_flight = ack_state->inflight_prior;
     rs->is_app_limited = ack_state->is_app_limited; /*Checked that this is properly implemented */   
-    rs->is_cwnd_limited = ack_state->is_cwnd_limited; 
+    rs->is_cwnd_limited = ack_state->is_cwnd_limited;
 }
 
 static void picoquic_bbr_notify_ack(
@@ -1774,7 +1982,7 @@ static void picoquic_bbr_notify_ack(
 {
     bbr_per_ack_state_t rs = { 0 };
     BBRSetRsFromAckState(path_x, ack_state, &rs);
-    /* TODO: call handle ACK */
+    BBRComputeEcnFrac(bbr_state, path_x, &rs);
     BBRUpdateOnACK(bbr_state, path_x, &rs, current_time);
 }
 

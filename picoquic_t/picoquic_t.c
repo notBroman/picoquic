@@ -321,6 +321,9 @@ static const picoquic_test_def_t test_table[] = {
     { "bbr1", bbr1_test },
     { "l4s_reno", l4s_reno_test },
     { "l4s_prague", l4s_prague_test },
+    { "l4s_prague_updown", l4s_prague_updown_test },
+    { "l4s_bbr", l4s_bbr_test },
+    { "l4s_bbr_updown", l4s_bbr_updown_test },
     { "long_rtt", long_rtt_test },
     { "high_latency_basic", high_latency_basic_test },
     { "high_latency_bbr", high_latency_bbr_test },
@@ -346,6 +349,9 @@ static const picoquic_test_def_t test_table[] = {
 #if 0
     { "bdp_cubic", bdp_cubic_test },
 #endif
+    { "bdp_short", bdp_short_test },
+    { "bdp_short_hi", bdp_short_hi_test },
+    { "bdp_short_lo", bdp_short_lo_test },
     { "cid_length", cid_length_test },
     { "optimistic_ack", optimistic_ack_test },
     { "optimistic_hole", optimistic_hole_test },
