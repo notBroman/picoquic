@@ -1523,6 +1523,13 @@ int picoquic_create_path(picoquic_cnx_t* cnx, uint64_t start_time, const struct 
             path_x->bytes_in_transit = 0;
             path_x->congestion_alg_state = NULL;
 
+            // TODO don't init careful resume if disabled
+            // careful resume
+            //if (cnx->quic->careful_resume_enabled)
+            //{
+                picoquic_resume_init(cnx, path_x, 1, picoquic_get_quic_time(path_x->cnx->quic));
+            //}
+
             /* Initialize per path pacing state */
             path_x->pacing_evaluation_time = start_time;
             path_x->pacing_bucket_nanosec = 16;
@@ -1571,6 +1578,14 @@ static void picoquic_clear_path_data(picoquic_cnx_t* cnx, picoquic_path_t * path
     if (cnx->congestion_alg != NULL) {
         cnx->congestion_alg->alg_delete(path_x);
     }
+
+    // TODO don't init careful resume if disabled
+    // careful resume
+    //if (cnx->quic->careful_resume_enabled)
+    //{
+        picoquic_resume_delete(path_x);
+    //}
+    // TODO move down to picoquic_delete_path()?
 
     /* Free the record */
     free(path_x);

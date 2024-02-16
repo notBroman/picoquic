@@ -123,6 +123,8 @@ static int satellite_test_one(picoquic_congestion_algorithm_t* ccalgo, size_t da
         picoquic_set_preemptive_repeat_policy(test_ctx->qserver, do_preemptive);
         picoquic_set_preemptive_repeat_per_cnx(test_ctx->cnx_client, do_preemptive);
 
+        picoquic_set_textlog(test_ctx->qserver, "-");
+        picoquic_set_textlog(test_ctx->qclient, "-");
 
         test_ctx->c_to_s_link->jitter = jitter;
         test_ctx->c_to_s_link->microsec_latency = latency;
@@ -150,8 +152,9 @@ static int satellite_test_one(picoquic_congestion_algorithm_t* ccalgo, size_t da
 
         picoquic_cnx_set_pmtud_required(test_ctx->cnx_client, 1);
 
-        /* set the binary log on the client side */
+        /* set the binary log on the client and server side */
         picoquic_set_binlog(test_ctx->qclient, ".");
+        picoquic_set_binlog(test_ctx->qserver, ".");
         test_ctx->qclient->use_long_log = 1;
         /* Since the client connection was created before the binlog was set, force log of connection header */
         binlog_new_connection(test_ctx->cnx_client);

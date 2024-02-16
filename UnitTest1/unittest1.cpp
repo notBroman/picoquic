@@ -2912,5 +2912,12 @@ namespace UnitTest1
 
             Assert::AreEqual(ret, 0);
         }
+
+        // careful resume
+	TEST_METHOD(careful_resume) {
+            int ret = careful_resume_test();
+
+            Assert::AreEqual(ret, 0);
+        }
     };
 }

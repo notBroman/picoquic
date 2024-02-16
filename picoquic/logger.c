@@ -471,6 +471,37 @@ char const* textlog_tp_name(picoquic_tp_enum tp_number)
     return tp_name;
 }
 
+char const* textlog_cr_name(picoquic_resume_alg_state_t alg_state)
+{
+    char const * alg_name = "unknown";
+
+    switch (alg_state)
+    {
+    case picoquic_resume_alg_observe:
+        alg_name = "OBSERVE";
+        break;
+    case picoquic_resume_alg_recon:
+        alg_name = "RECON";
+        break;
+    case picoquic_resume_alg_unval:
+        alg_name = "UNVAL";
+        break;
+    case picoquic_resume_alg_validate:
+        alg_name = "VALIDATE";
+        break;
+    case picoquic_resume_alg_retreat:
+        alg_name = "RETREAT";
+        break;
+    case picoquic_resume_alg_normal:
+        alg_name = "NORMAL";
+        break;
+    default:
+        break;
+    }
+
+    return alg_name;
+}
+
 static void textlog_connection_id(FILE* F, picoquic_connection_id_t * cid)
 {
     fprintf(F, "<");
@@ -1908,6 +1939,24 @@ static void textlog_congestion_state(FILE* F, picoquic_cnx_t* cnx, uint64_t curr
     fprintf(F, "state: %d\n", (int)cnx->cnx_state);
 }
 
+// careful resume
+static void textlog_cr_state(FILE* F, picoquic_cnx_t* cnx, uint64_t current_time)
+{
+    picoquic_path_t * path_x = cnx->path[0];
+
+    fprintf(F, "%" PRIx64 ": ", picoquic_val64_connection_id(picoquic_get_logging_cnxid(cnx)));
+    textlog_time(F, cnx, current_time, "T= ", ", ");
+    fprintf(F, "cwin: %d,", (int)path_x->cwin);
+    fprintf(F, "flight: %d,", (int)path_x->bytes_in_transit);
+    fprintf(F, "rtt_min: %d,", (int)path_x->rtt_min);
+    fprintf(F, "saved_rtt: %d,", (int)path_x->careful_resume_state->saved_rtt);
+    fprintf(F, "saved_cwin: %d,", (int)path_x->careful_resume_state->saved_cwnd);
+    fprintf(F, "pipesize: %d,", (int)path_x->careful_resume_state->pipesize);
+    fprintf(F, "unval_mark: %d,", (int)path_x->careful_resume_state->unval_mark);
+    fprintf(F, "val_mark: %d,", (int)path_x->careful_resume_state->val_mark);
+    fprintf(F, "state: %s\n", textlog_cr_name(path_x->careful_resume_state->alg_state));
+}
+
 /*
     From TLS 1.3 spec:
    struct {
@@ -2271,6 +2320,13 @@ static void textlog_cc_dump(picoquic_cnx_t* cnx, uint64_t current_time)
     }
 }
 
+static void textlog_cr_dump(picoquic_cnx_t* cnx, uint64_t current_time)
+{
+    if (cnx->quic->F_log != NULL && picoquic_cnx_is_still_logging(cnx)) {
+        textlog_cr_state(cnx->quic->F_log, cnx, current_time);
+    }
+}
+
 
 void picoquic_textlog_close(picoquic_quic_t* quic)
 {
@@ -2300,7 +2356,9 @@ struct st_picoquic_unified_logging_t textlog_functions = {
     textlog_tls_ticket,
     textlog_new_connection,
     textlog_close_connection,
-    textlog_cc_dump
+    textlog_cc_dump,
+    // careful resume
+    textlog_cr_dump
 };
 
 int picoquic_set_textlog(picoquic_quic_t* quic, char const* textlog_file)

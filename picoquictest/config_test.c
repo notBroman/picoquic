@@ -27,7 +27,7 @@
 #include "picoquic_config.h"
 #include "picoquictest_internal.h"
 
-static char* ref_option_text = "c:k:p:v:o:w:x:rR:s:XS:G:P:O:M:e:C:i:l:Lb:q:m:n:a:t:zI:d:DQT:N:B:F:VU:0j:W:h";
+static char* ref_option_text = "c:k:p:v:o:w:x:rR:s:XS:G:P:O:M:e:C:i:l:Lb:q:m:n:a:t:zI:d:DQT:N:B:F:VU:0j:W:uh";
 
 int config_option_letters_test()
 {
@@ -76,6 +76,8 @@ static picoquic_quic_config_t param1 = {
     1, /* unsigned int do_preemptive_repeat : 1; */
     1, /* unsigned int do_not_use_gso : 1 */
     0, /* disable port blocking */
+    // careful resume
+    1,
     /* Server only */
     "/data/www/", /* char const* www_dir; */
     { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
@@ -126,6 +128,7 @@ static char const* config_argv1[] = {
     "-j", "1",
     "-0",
     "-i", "0N8C-000123",
+    "-u",
     NULL
 };
 
@@ -158,6 +161,8 @@ static picoquic_quic_config_t param2 = {
     0, /* unsigned int do_preemptive_repeat : 1; */
     0, /* unsigned int do_not_use_gso : 1 */
     1, /* disable port blocking */
+    // careful resume
+    0,
     /* Server only */
     NULL, /* char const* www_dir; */
     { 0 }, /* Reset seed */
@@ -239,7 +244,9 @@ static config_error_test_t config_errors[] = {
     { 2, { "-I", "255" }},
     { 2, { "-U", "XY000002" }},
     { 2, { "-W", "cwin" }},
-    { 2, { "-d", "idle" }}
+    { 2, { "-d", "idle" }},
+    //careful resume
+    { 1, { "-u"}}
 };
 
 static size_t nb_config_errors = sizeof(config_errors) / sizeof(config_error_test_t);

@@ -1131,6 +1131,13 @@ void picoquic_queue_for_retransmit(picoquic_cnx_t* cnx, picoquic_path_t * path_x
         /* Account for bytes in transit, for congestion control */
         path_x->bytes_in_transit += length;
         path_x->is_cc_data_updated = 1;
+
+        // careful resume
+        if (picoquic_resume_enabled(cnx, path_x))
+        {
+            picoquic_resume_send_packet(path_x->careful_resume_state, path_x, current_time);
+        }
+
         /* Update the pacing data */
         picoquic_update_pacing_after_send(path_x, length, current_time);
     }
@@ -1170,6 +1177,7 @@ picoquic_packet_t* picoquic_dequeue_retransmit_packet(picoquic_cnx_t* cnx,
             p->send_path->bytes_in_transit = 0;
         }
         p->send_path->is_cc_data_updated = 1;
+        p->send_path->is_cr_data_updated = 1;
     }
 
     /* Remove from per path list */
@@ -3450,6 +3458,9 @@ int picoquic_prepare_packet_almost_ready(picoquic_cnx_t* cnx, picoquic_path_t* p
 
         if (picoquic_cnx_is_still_logging(cnx)) {
             picoquic_log_cc_dump(cnx, current_time);
+            /* Entrypoint for careful resume log */
+            // TODO if careful enabled
+            picoquic_log_cr_dump(cnx, current_time);
         }
     }
 

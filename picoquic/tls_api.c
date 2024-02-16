@@ -1089,6 +1089,7 @@ int picoquic_server_encrypt_ticket_call_back(ptls_encrypt_ticket_t* encrypt_tick
                     /* Remember resumed ticket ID in connection context */
                     quic->cnx_in_progress->resumed_ticket_id = seq_num;
                     /* Remember rtt and cwin from ticket */
+                    // TODO JOERG restore rtt and cwin from local ticket store from server
                     server_ticket = picoquic_retrieve_issued_ticket(quic, seq_num);
                     if (server_ticket != NULL && server_ticket->cwin > 0) {
                         picoquic_seed_bandwidth(

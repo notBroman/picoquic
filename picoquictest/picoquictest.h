@@ -510,6 +510,9 @@ int picowt_baton_uri_test();
 
 int cplusplustest();
 
+// careful resume
+int careful_resume_test();
+
 #ifdef __cplusplus
 }
 #endif

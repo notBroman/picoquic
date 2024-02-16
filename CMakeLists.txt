@@ -97,6 +97,7 @@ set(PICOQUIC_LIBRARY_FILES
     picoquic/port_blocking.c
     picoquic/prague.c
     picoquic/quicctx.c
+    picoquic/resume.c
     picoquic/sacks.c
     picoquic/sender.c
     picoquic/sim_link.c
@@ -136,6 +137,7 @@ set(PICOQUIC_TEST_LIBRARY_FILES
     picoquictest/ack_of_ack_test.c
     picoquictest/app_limited.c
     picoquictest/bytestream_test.c
+    picoquictest/careful_resume_test.c
     picoquictest/cert_verify_test.c
     picoquictest/cleartext_aead_test.c
     picoquictest/code_version_test.c
@@ -182,7 +184,7 @@ set(PICOHTTP_LIBRARY_FILES
     picohttp/h3zero_client.c
     picohttp/h3zero_common.c
     picohttp/h3zero_server.c
-     picohttp/h3zero_uri.c
+    picohttp/h3zero_uri.c
     picohttp/quicperf.c
     picohttp/siduck.c
     picohttp/webtransport.c
@@ -277,23 +279,23 @@ macro(set_picoquic_compile_settings)
             CXX_EXTENSIONS YES)
     target_compile_options(${ARGV0}
         PRIVATE
-            $<$<C_COMPILER_ID:Clang>: -O3 -Wall -fno-exceptions
+            $<$<C_COMPILER_ID:Clang>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_C_FLAGS}>
-            $<$<C_COMPILER_ID:AppleClang>: -O3 -Wall -fno-exceptions
+            $<$<C_COMPILER_ID:AppleClang>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_C_FLAGS}>
-            $<$<C_COMPILER_ID:GNU>: -O3 -Wall -fno-exceptions
+            $<$<C_COMPILER_ID:GNU>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -frename-registers -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_C_FLAGS}>
             $<$<C_COMPILER_ID:MSVC>: >
-            $<$<CXX_COMPILER_ID:Clang>: -O3 -Wall -fno-exceptions
+            $<$<CXX_COMPILER_ID:Clang>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_CXX_FLAGS}>
-            $<$<CXX_COMPILER_ID:AppleClang>: -O3 -Wall -fno-exceptions
+            $<$<CXX_COMPILER_ID:AppleClang>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_CXX_FLAGS}>
-            $<$<CXX_COMPILER_ID:GNU>: -O3 -Wall -fno-exceptions
+            $<$<CXX_COMPILER_ID:GNU>: -O0 -g -Wall -fno-exceptions
                 -fno-signed-zeros -frename-registers -fno-trapping-math
                 ${PICOQUIC_ADDITIONAL_CXX_FLAGS}>
             $<$<CXX_COMPILER_ID:MSVC>: >)

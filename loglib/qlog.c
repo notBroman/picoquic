@@ -51,6 +51,13 @@ typedef struct qlog_context_st {
     uint64_t bytes_in_transit;
     uint64_t pacing_packet_time;
 
+    uint64_t saved_rtt;
+    uint64_t saved_cwnd;
+    uint64_t pipesize;
+    uint64_t unval_mark;
+    uint64_t val_mark;
+    // TODO alg state?
+
     unsigned int trace_flow_id : 1;
     unsigned int key_phase_sent_last : 1;
     unsigned int key_phase_sent : 1;
@@ -1403,6 +1410,130 @@ int qlog_cc_update(uint64_t time, uint64_t path_id, bytestream* s, void* ptr)
     return ret;
 }
 
+// TODO implement qlog convertion
+/* Qlog records evolution of careful resume with events of the form:
+* [559,"transport","packet_sent","DEFAULT",{"packet_type":"handshake","header":{"packet_size":668,"packet_number":0}}],
+* [904,"recovery","careful_resume_updated","default",{"bytes_in_flight":822}],
+* [45228,"recovery","careful_resume_updated","default",{"bytes_in_flight":668,"cwnd":12154,"smoothed_rtt":46151,
+*                          "min_rtt":46151,"latest_rtt":46151}],
+*/
+
+int qlog_cr_update(uint64_t time, uint64_t path_id, bytestream* s, void* ptr)
+{
+    int ret = 0;
+    uint64_t sequence = 0;
+    uint64_t packet_rcvd = 0;
+    uint64_t highest_ack = UINT64_MAX;
+    uint64_t high_ack_time = 0;
+    uint64_t last_time_ack = 0;
+    uint64_t cwin = 0;
+    uint64_t bytes_in_transit = 0;
+    uint64_t rtt_min = 0;
+    uint64_t saved_rtt = 0;
+    uint64_t saved_cwnd = 0;
+    uint64_t pipesize = 0;
+    uint64_t unval_mark = 0;
+    uint64_t val_mark = 0;
+    qlog_context_t* ctx = (qlog_context_t*)ptr;
+    FILE* f = ctx->f_txtlog;
+
+    ret |= byteread_vint(s, &sequence);
+    ret |= byteread_vint(s, &packet_rcvd);
+    if (packet_rcvd != 0) {
+        ret |= byteread_vint(s, &highest_ack);
+        ret |= byteread_vint(s, &high_ack_time);
+        ret |= byteread_vint(s, &last_time_ack);
+    }
+    ret |= byteread_vint(s, &cwin);
+    ret |= byteread_vint(s, &bytes_in_transit);
+    ret |= byteread_vint(s, &rtt_min);
+    ret |= byteread_vint(s, &saved_rtt);
+    ret |= byteread_vint(s, &saved_cwnd);
+    ret |= byteread_vint(s, &pipesize);
+    ret |= byteread_vint(s, &unval_mark);
+    ret |= byteread_vint(s, &val_mark);
+
+    if (ret == 0 &&
+        (cwin != ctx->cwin || bytes_in_transit != ctx->bytes_in_transit || rtt_min != ctx->RTT_min ||
+            saved_rtt != ctx->saved_rtt || saved_cwnd != ctx->saved_cwnd ||
+            pipesize != ctx->pipesize || unval_mark != ctx->unval_mark || val_mark != ctx->val_mark)) {
+        /* Something changed. Report the event. */
+        int64_t delta_time = time - ctx->start_time;
+        char* comma = "";
+
+        if (ctx->event_count != 0) {
+            fprintf(f, ",\n");
+        }
+        else {
+            fprintf(f, "\n");
+        }
+
+        /* There is no recovery event for careful_resume parameters in draft-ietf-quic-qlog-quic-events-06 */
+        qlog_event_header(f, ctx, delta_time, path_id, "recovery", "careful_resume_updated");
+
+        /* draft-ietf-quic-qlog-quic-events-06 */
+        /* In order to make logging easier, implementations MAY log values even if they are the same as previously reported
+         * values (e.g., two subsequent RecoveryMetricsUpdated entries can both report the exact same value for min_rtt).
+         * However, applications SHOULD try to log only actual updates to values. */
+
+        /* NOTE we update all parameters for all events for debugging purposes. */
+        // TODO only update modified parameters
+
+        //if (cwin != ctx->cwin) {
+            fprintf(f, "%s\"cwnd\": %" PRIu64, comma, cwin);
+            ctx->cwin = cwin;
+            comma = ",";
+        //}
+
+        //if (bytes_in_transit != ctx->bytes_in_transit) {
+            fprintf(f, "%s\"bytes_in_flight\": %" PRIu64, comma, bytes_in_transit);
+            ctx->bytes_in_transit = bytes_in_transit;
+            comma = ",";
+        //}
+
+        //if (rtt_min != ctx->RTT_min) {
+            fprintf(f, "%s\"rtt_min\": %" PRIu64, comma, rtt_min);
+            ctx->RTT_min = rtt_min;
+            comma = ",";
+        //}
+
+        //if (saved_rtt != ctx->saved_rtt) {
+            fprintf(f, "%s\"saved_rtt\": %" PRIu64, comma, saved_rtt);
+            ctx->saved_rtt = saved_rtt;
+            comma = ",";
+        //}
+
+        //if (saved_cwnd != ctx->saved_cwnd) {
+            fprintf(f, "%s\"saved_cwnd\": %" PRIu64, comma, saved_cwnd);
+            ctx->saved_cwnd = saved_cwnd;
+            comma = ",";
+        //}
+
+        //if (pipesize != ctx->pipesize) {
+            fprintf(f, "%s\"pipesize\": %" PRIu64, comma, pipesize);
+            ctx->pipesize = pipesize;
+            comma = ",";
+        //}
+
+        //if (unval_mark != ctx->unval_mark) {
+            fprintf(f, "%s\"unval_mark\": %" PRIu64, comma, unval_mark);
+            ctx->unval_mark = unval_mark;
+            comma = ",";
+        //}
+
+        //if (val_mark != ctx->val_mark) {
+            fprintf(f, "%s\"val_mark\": %" PRIu64, comma, val_mark);
+            ctx->val_mark = val_mark;
+            /* comma = ","; (not useful since last block of function) */
+        //}
+
+        fprintf(f, "}]");
+        ctx->event_count++;
+    }
+
+    return ret;
+}
+
 int qlog_info_message(uint64_t time, bytestream* s, void* ptr)
 {
     int ret = 0;
@@ -1543,6 +1674,7 @@ int qlog_convert(const picoquic_connection_id_t* cid, FILE* f_binlog, const char
         ctx.packet_buffered = qlog_packet_buffered;
         ctx.cc_update = qlog_cc_update;
         ctx.info_message = qlog_info_message;
+        ctx.cr_update = qlog_cr_update;
         ctx.ptr = &qlog;
 
         ret = binlog_convert(f_binlog, cid, &ctx);

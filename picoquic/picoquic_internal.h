@@ -31,6 +31,9 @@
 #include "picoquic.h"
 #include "picoquic_utils.h"
 
+// careful resume
+#include "resume.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,7 +56,7 @@ extern "C" {
 #define PICOQUIC_INITIAL_RTT 250000ull /* 250 ms */
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
-#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 250000ull /* 250 ms */
+#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 1000000ull /* FIXME increased to 1s to avoid spurious retransmit on sat path */
 #define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 1000000ull /* one second */
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 2000000ull /* two seconds */
 #define PICOQUIC_MIN_RETRANSMIT_TIMER 50000ull /* 50 ms */
@@ -734,6 +737,9 @@ typedef struct st_picoquic_quic_t {
     struct st_picoquic_unified_logging_t* qlog_fns;
     picoquic_performance_log_fn perflog_fn;
     void* v_perflog_ctx;
+
+    // careful resume
+    unsigned int careful_resume_enabled : 1;
 } picoquic_quic_t;
 
 picoquic_packet_context_enum picoquic_context_from_epoch(int epoch);
@@ -1118,6 +1124,10 @@ typedef struct st_picoquic_path_t {
     uint64_t last_cwin_blocked_time;
     uint64_t last_time_acked_data_frame_sent;
     void* congestion_alg_state;
+
+    /* Careful resume state */
+    picoquic_resume_state_t* careful_resume_state;
+    unsigned int is_cr_data_updated : 1;
 
     /*
     * Pacing uses a set of per path variables:
