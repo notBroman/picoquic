@@ -239,8 +239,8 @@ static void picoquic_cubic_notify(
     picoquic_per_ack_state_t * ack_state,
     uint64_t current_time)
 {
-    printf("\033[0;32m%s\tpicoquic_cubic_notify(cnx=%p, path_x=%p, notification=%d, current_time=%" PRIu64 ")\033[0m\n",
-          (cnx->client_mode) ? "CLIENT" : "SERVER", cnx, path_x, notification, current_time);
+    //printf("\033[0;32m%s\tpicoquic_cubic_notify(cnx=%p, path_x=%p, notification=%d, current_time=%" PRIu64 ")\033[0m\n",
+    //      (cnx->client_mode) ? "CLIENT" : "SERVER", cnx, path_x, notification, current_time);
     picoquic_cubic_state_t* cubic_state = (picoquic_cubic_state_t*)path_x->congestion_alg_state;
     path_x->is_cc_data_updated = 1;
 
@@ -342,14 +342,16 @@ static void picoquic_cubic_notify(
                 picoquic_cubic_reset(cubic_state, path_x, current_time);
                 break;
             case picoquic_congestion_notification_seed_cwin:
-                if (cubic_state->ssthresh == UINT64_MAX) {
+                //printf("picoquic_congestion_notification_seed_cwin\033[0m\n");
+                // TODO not for careful resume
+                /*if (cubic_state->ssthresh == UINT64_MAX) {
                     if (path_x->cwin < ack_state->nb_bytes_acknowledged) {
                         path_x->cwin = ack_state->nb_bytes_acknowledged;
                     }
                     cubic_state->ssthresh = ack_state->nb_bytes_acknowledged;
                     path_x->is_ssthresh_initialized = 1;
                     picoquic_cubic_enter_avoidance(cubic_state, current_time);
-                }
+                }*/
                 break;
             default:
                 break;
