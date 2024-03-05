@@ -244,6 +244,8 @@ static void picoquic_cubic_notify(
                     }
                 }
                 break;
+            case picoquic_congestion_notification_sent:
+                break;
             case picoquic_congestion_notification_repeat:
             case picoquic_congestion_notification_ecn_ec:
             case picoquic_congestion_notification_timeout:

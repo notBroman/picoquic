@@ -206,7 +206,7 @@ static int satellite_test_one(picoquic_congestion_algorithm_t* ccalgo, size_t da
 int satellite_basic_test()
 {
     /* Should be less than 7 sec per draft etosat. */
-    return satellite_test_one(picoquic_bbr_algorithm, 100000000, 5300000, 250, 3, 0, 0, 0, 0, 0, 0);
+    return satellite_test_one(picoquic_bbr_algorithm, 100000000, 18000000, 50, 5, 0, 0, 0, 0, 0, 0);
 }
 
 int satellite_seeded_test()
@@ -263,13 +263,26 @@ int satellite_small_up_test()
 int satellite_cubic_test()
 {
     /* Should be less than 7 sec per draft etosat, but cubic is much slower */
-    return satellite_test_one(picoquic_cubic_algorithm, 100000000, 11000000, 250, 3, 0, 0, 0, 0, 0, 0);
+    return satellite_test_one(picoquic_cubic_algorithm, 100000000, 17500000, 50, 5, 0, 0, 0, 0, 0, 0);
 }
 
 int satellite_cubic_loss_test()
 {
     /* Should be less than 10 sec per draft etosat, but cubic is a bit slower */
-    return satellite_test_one(picoquic_cubic_algorithm, 100000000, 12100000, 250, 3, 0, 1, 0, 0, 0, 0);
+    return satellite_test_one(picoquic_cubic_algorithm, 100000000, 19000000, 50, 5, 0, 1, 0, 0, 0, 0);
+}
+
+int satellite_newreno_test()
+{
+    /* Should be less than 7 sec per draft etosat, but cubic is much slower */
+    return satellite_test_one(picoquic_newreno_algorithm, 100000000, 18000000, 50, 5, 0, 0, 0, 0, 0, 0);
+}
+
+/* TODO fix */
+int satellite_newreno_loss_test()
+{
+    /* Should be less than 10 sec per draft etosat, but cubic is a bit slower */
+    return satellite_test_one(picoquic_newreno_algorithm, 100000000, 12100000, 50, 5, 0, 1, 0, 0, 0, 0);
 }
 
 /* Satellite loss interop test, as shown in https://interop.sedrubal.de/

@@ -234,6 +234,8 @@ static void picoquic_newreno_notify(
                 path_x->cwin = nr_state->nrss.cwin;
             }
             break;
+        case picoquic_congestion_notification_sent:
+            break;
         case picoquic_congestion_notification_seed_cwin:
         case picoquic_congestion_notification_ecn_ec:
         case picoquic_congestion_notification_repeat:
