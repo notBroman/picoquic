@@ -791,6 +791,7 @@ int careful_resume_test() {
  *
  *  @brief              Simple jump with packet loss.
  */
+/* TODO discuss if we should ignore single losses */
 int careful_resume_loss_test() {
     // data_size = 25M
     return careful_resume_test_one(picoquic_cubic_algorithm, 50000000, 6, 50, 300000ull, 0, 0x1001001, 0, 30000000000);
@@ -836,6 +837,7 @@ int careful_resume_loss_in_recon_test() {
  *  @brief              Packet loss in validate phase.
  */
 int careful_resume_loss_in_validate_test() {
+    return -1; /* TODO disabled until we discussed single losses */
     return careful_resume_test_one_ex(picoquic_cubic_algorithm,
                                       25000000, 6, 50, 300000ull, 0, 0x0,
                                       25000000, 6, 50, 300000ull, 0, 0x10000000, // packet 25 lost
@@ -847,6 +849,7 @@ int careful_resume_loss_in_validate_test() {
  *  @brief              Packet loss in unval phase.
  */
 int careful_resume_loss_in_unval_test() {
+    return -1; /* TODO disabled until we discussed single losses */
     return careful_resume_test_one_ex(picoquic_cubic_algorithm,
                                       25000000, 6, 50, 300000ull, 0, 0x0,
                                       25000000, 6, 50, 300000ull, 0, 0x10, // packet 13 lost
