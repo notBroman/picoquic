@@ -53,7 +53,7 @@ extern "C" {
 #define PICOQUIC_INITIAL_RTT 250000ull /* 250 ms */
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
-#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 250000ull /* 250 ms */
+#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 1000000ull /* 250 ms */ /* increased to avoid packet loss in handshake */
 #define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 1000000ull /* one second */
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 2000000ull /* two seconds */
 #define PICOQUIC_MIN_RETRANSMIT_TIMER 50000ull /* 50 ms */
@@ -1067,6 +1067,7 @@ typedef struct st_picoquic_path_t {
     unsigned int path_is_preferred_path : 1;
     unsigned int is_nat_challenge : 1;
     unsigned int is_cc_data_updated : 1;
+    unsigned int is_cr_data_updated : 1;
     unsigned int is_multipath_probe_needed : 1;
     unsigned int was_local_cnxid_retired : 1;
     unsigned int is_ssthresh_initialized : 1;

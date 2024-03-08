@@ -94,7 +94,7 @@ static option_table_line_t option_table[] = {
     { picoquic_option_Version_Upgrade, 'U', "version_upgrade", 1, "", "Version upgrade if server agrees, e.g. -U 6b3343cf" },
     { picoquic_option_No_GSO, '0', "no_gso", 0, "", "Do not use UDP GSO or equivalent" },
     { picoquic_option_BDP_frame, 'j', "bdp", 1, "number", "use bdp extension frame(1) or don\'t (0). Default=0" },
-    { picoquic_option_CWIN_MAX, 'W', "cwin_max", 1, "bytes", "Max value for CWIN. Default=UINT64_MAX"},
+    { picoquic_option_CWIN_MAX, 'W', "cwin_max", 1, "bytes", "Max value for CWIN. Default=UINT64_MAX" },
     { picoquic_option_CAREFUL_RESUME, 'J', "careful_resume", 0, "", "Enable careful resume." },
     { picoquic_option_HELP, 'h', "help", 0, "", "This help message" }
 };

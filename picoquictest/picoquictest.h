@@ -514,6 +514,15 @@ int picowt_baton_multi_test();
 int picowt_baton_random_test();
 int picowt_baton_wrong_test();
 int picowt_baton_uri_test();
+int careful_resume_test();
+int careful_resume_loss_test();
+int careful_resume_data_limited_less_than_cwnd_test();
+int careful_resume_data_limited_in_validate_test();
+int careful_resume_loss_in_recon_test();
+int careful_resume_loss_in_validate_test();
+int careful_resume_loss_in_unval_test();
+int careful_resume_path_changed_test();
+int careful_resume_unit_test();
 
 int cplusplustest();
 
