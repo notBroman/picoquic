@@ -794,6 +794,7 @@ int careful_resume_test() {
 /* TODO discuss if we should ignore single losses */
 int careful_resume_loss_test() {
     // data_size = 25M
+    return -1; /* TODO disabled until we discussed single losses */
     return careful_resume_test_one(picoquic_cubic_algorithm, 50000000, 6, 50, 300000ull, 0, 0x1001001, 0, 30000000000);
 }
 
