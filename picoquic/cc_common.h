@@ -78,15 +78,15 @@ typedef enum {
 typedef struct st_picoquic_cr_state_t {
     picoquic_cr_alg_state_t alg_state; /* current state of the careful resume algorithm */
 
-    uint64_t saved_rtt; /* observed RTT from previous connection */
-    uint64_t saved_cwnd; /* observed CWND from previous connection */
+    uint64_t saved_rtt; /* observed RTT from previous connection in us */
+    uint64_t saved_cwnd; /* observed CWND from previous connection in bytes */
 
     uint64_t unval_mark; /* lower end of the jump in bytes. */
     uint64_t val_mark; /* upper end of the jump in bytes. */
-    uint64_t pipesize; /* pipesize */
+    uint64_t pipesize; /* pipesize in bytes */
 
-    uint64_t start_of_epoch; /* start timestamp of current state */
-    uint64_t previous_start_of_epoch; /* start timestamp of previous state */
+    uint64_t start_of_epoch; /* start timestamp of current state in us */
+    uint64_t previous_start_of_epoch; /* start timestamp of previous state in us */
 } picoquic_cr_state_t;
 
 void picoquic_cr_reset(picoquic_cr_state_t* cr_state, uint64_t current_time);
@@ -97,6 +97,7 @@ void picoquic_cr_enter_unval(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
 void picoquic_cr_enter_validate(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
 void picoquic_cr_enter_retreat(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
 void picoquic_cr_enter_normal(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
+void picoquic_cr_enter_observe(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
 
 void picoquic_cr_notify(picoquic_cr_state_t* cr_state, picoquic_cnx_t* cnx, picoquic_path_t* path_x,
     picoquic_congestion_notification_t notification, picoquic_per_ack_state_t* ack_state, uint64_t current_time);

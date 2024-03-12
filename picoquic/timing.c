@@ -113,6 +113,7 @@ static void picoquic_validate_bdp_seed(picoquic_cnx_t* cnx, picoquic_path_t* pat
                     ack_state.nb_bytes_acknowledged = (uint64_t)cnx->seed_cwin;
                     /* TODO only one seed per cnx? or per path? */
                     cnx->cwin_notified_from_seed = 1;
+                    /* TODO disabled picoquic jump */
                     /*cnx->congestion_alg->alg_notify(cnx, path_x,
                         picoquic_congestion_notification_seed_cwin,
                         &ack_state, current_time);*/

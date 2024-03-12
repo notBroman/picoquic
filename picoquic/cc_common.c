@@ -198,9 +198,8 @@ void picoquic_cr_notify(
     picoquic_congestion_notification_t notification,
     picoquic_per_ack_state_t* ack_state,
     uint64_t current_time) {
-    path_x->is_cr_data_updated = 1;
 
-    /* Process notification only if careful resume enabled or path seeded. */
+    /* Process notification only if careful resume enabled and path seeded. */
     if (!cnx->quic->use_careful_resume || !cr_state->saved_cwnd || !cr_state->saved_rtt) {
         return;
     }
@@ -233,6 +232,7 @@ void picoquic_cr_notify(
                     /*  first unvalidated packet is ACKed */
                     /*  ... sender initialises the PipeSize to to the CWND (the same as the flight size, 29 packets) ...
                         ... When the first unvalidated packet is acknowledged (packet number 30) the sender enters the Validating Phase. */
+                    /* TODO (current_time - cr_state->start_of_epoch) > path_x->rtt_min */
                     if (path_x->delivered > cr_state->unval_mark) {
                         printf("\033[0;35m%37sdelivered=%" PRIu64 " > unval_mark=%" PRIu64 ", first unvalidated packet "
                             "ACKed\033[0m\n", "", path_x->delivered, cr_state->unval_mark);
@@ -432,9 +432,7 @@ void picoquic_cr_enter_recon(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
     cr_state->start_of_epoch = current_time;
 
     /* RECON: CWND=IW */
-    path_x->cwin = PICOQUIC_CWIN_INITIAL; // TODO check if cubic alredy sets cwin
-
-    path_x->is_cr_data_updated = 1;
+    path_x->cwin = PICOQUIC_CWIN_INITIAL;
 
     printf("\033[0;35m%37scwin=%" PRIu64 ", rtt_min=%" PRIu64 ", saved_cwnd=%" PRIu64 ", saved_rtt=%" PRIu64
         ",\n%37sunval_mark=%" PRIu64 ", val_mark=%" PRIu64 ", pipesize=%" PRIu64 "\033[0m\n",
@@ -476,8 +474,6 @@ void picoquic_cr_enter_unval(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
     //uint64_t jump_cwnd = resume_state->saved_cwnd / 2;
     path_x->cwin = cr_state->saved_cwnd / 2;
 
-    path_x->is_cr_data_updated = 1;
-
     printf("\033[0;35m%37scwin=%" PRIu64 ", rtt_min=%" PRIu64 ", saved_cwnd=%" PRIu64 ", saved_rtt=%" PRIu64
         ",\n%37sunval_mark=%" PRIu64 ", val_mark=%" PRIu64 ", pipesize=%" PRIu64 "\033[0m\n",
         "", path_x->cwin, path_x->rtt_min, cr_state->saved_cwnd, cr_state->saved_rtt, "",
@@ -504,7 +500,6 @@ void picoquic_cr_enter_validate(picoquic_cr_state_t* cr_state, picoquic_path_t* 
         Validating Phase, the CWND is set to the flight size. */
     path_x->cwin = path_x->bytes_in_transit; // TODO JOERG cwin reduced?
 
-    path_x->is_cr_data_updated = 1;
     printf("\033[0;35m%37scwin=%" PRIu64 ", rtt_min=%" PRIu64 ", saved_cwnd=%" PRIu64 ", saved_rtt=%" PRIu64
         ",\n%37sunval_mark=%" PRIu64 ", val_mark=%" PRIu64 ", pipesize=%" PRIu64 "\033[0m\n",
         "", path_x->cwin, path_x->rtt_min, cr_state->saved_cwnd, cr_state->saved_rtt, "",
@@ -552,8 +547,6 @@ void picoquic_cr_enter_retreat(picoquic_cr_state_t* cr_state, picoquic_path_t* p
     path_x->cnx->seed_cwin = 0;
     path_x->cnx->seed_rtt_min = 0;
 
-    path_x->is_cr_data_updated = 1;
-
     printf("\033[0;35m%37scwin=%" PRIu64 ", rtt_min=%" PRIu64 ", saved_cwnd=%" PRIu64 ", saved_rtt=%" PRIu64
         ",\n%37sunval_mark=%" PRIu64 ", val_mark=%" PRIu64 ", pipesize=%" PRIu64 "\033[0m\n",
         "", path_x->cwin, path_x->rtt_min, cr_state->saved_cwnd, cr_state->saved_rtt, "",
@@ -575,12 +568,17 @@ void picoquic_cr_enter_normal(picoquic_cr_state_t* cr_state, picoquic_path_t* pa
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
     cr_state->start_of_epoch = current_time;
 
-    path_x->is_cr_data_updated = 1;
-
     printf("\033[0;35m%37scwin=%" PRIu64 ", rtt_min=%" PRIu64 ", saved_cwnd=%" PRIu64 ", saved_rtt=%" PRIu64
         ",\n%37sunval_mark=%" PRIu64 ", val_mark=%" PRIu64 ", pipesize=%" PRIu64 "\033[0m\n",
         "", path_x->cwin, path_x->rtt_min, cr_state->saved_cwnd, cr_state->saved_rtt, "",
         cr_state->unval_mark, cr_state->val_mark, cr_state->pipesize);
+}
+
+void picoquic_cr_enter_observe(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time) {
+    cr_state->alg_state = picoquic_cr_alg_observe;
+
+    cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
+    cr_state->start_of_epoch = current_time;
 }
 
 uint64_t picoquic_cc_increased_window(picoquic_cnx_t* cnx, uint64_t previous_window) {
