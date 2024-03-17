@@ -697,7 +697,7 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
-		TEST_METHOD(test_transport_param)
+		TEST_METHOD(transport_param)
 		{
 			int ret = transport_param_test();
 
@@ -2248,6 +2248,12 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(mediatest_wifi) {
+            int ret = mediatest_wifi_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(mediatest_worst) {
             int ret = mediatest_worst_test();
 
@@ -2392,6 +2398,12 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(monopath_unique) {
+            int ret = monopath_unique_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(monopath_0rtt) {
             int ret = monopath_0rtt_test();
 
@@ -2530,6 +2542,72 @@ namespace UnitTest1
             Assert::AreEqual(ret, 0);
         }
 
+        TEST_METHOD(m_unip_basic) {
+            int ret = m_unip_basic_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_drop_first) {
+            int ret = m_unip_drop_first_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_drop_second) {
+            int ret = m_unip_drop_second_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_sat_plus) {
+            int ret = m_unip_sat_plus_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_renew) {
+            int ret = m_unip_renew_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_rotation) {
+            int ret = m_unip_rotation_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_nat) {
+            int ret = m_unip_nat_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_standby) {
+            int ret = m_unip_standby_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_standup) {
+            int ret = m_unip_standup_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_tunnel) {
+            int ret = m_unip_tunnel_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(m_unip_abandon) {
+            int ret = m_unip_abandon_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
         TEST_METHOD(simple_multipath_basic) {
             int ret = simple_multipath_basic_test();
 
@@ -2640,6 +2718,18 @@ namespace UnitTest1
 
         TEST_METHOD(h3zero_integer) {
             int ret = h3zero_integer_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(h3zero_varint_stream) {
+            int ret = h3zero_varint_stream_test();
+
+            Assert::AreEqual(ret, 0);
+        }
+
+        TEST_METHOD(h3zero_incoming_unidir) {
+            int ret = h3zero_incoming_unidir_test();
 
             Assert::AreEqual(ret, 0);
         }
