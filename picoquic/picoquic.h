@@ -1391,6 +1391,7 @@ int picoquic_cnx_is_still_logging(picoquic_cnx_t* cnx);
 
 typedef enum {
     picoquic_congestion_notification_acknowledgement,
+    picoquic_congestion_notification_sent,
     picoquic_congestion_notification_repeat,
     picoquic_congestion_notification_timeout,
     picoquic_congestion_notification_spurious_repeat,
@@ -1452,6 +1453,8 @@ void picoquic_set_default_congestion_algorithm(picoquic_quic_t* quic, picoquic_c
 void picoquic_set_default_congestion_algorithm_by_name(picoquic_quic_t* quic, char const* alg_name);
 
 void picoquic_set_congestion_algorithm(picoquic_cnx_t* cnx, picoquic_congestion_algorithm_t const* algo);
+
+void picoquic_set_careful_resume(picoquic_quic_t* quic, int do_careful_resume);
 
 /* Special code for Wi-Fi network. These networks are subject to occasional
  * "suspension", for power saving reasons. If the suspension is too long,
