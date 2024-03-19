@@ -1138,16 +1138,7 @@ void picoquic_queue_for_retransmit(picoquic_cnx_t* cnx, picoquic_path_t * path_x
     if (!packet->is_ack_trap) {
         /* Account for bytes in transit, for congestion control */
         path_x->bytes_in_transit += length;
-
-        /* Nofity congestion control algorithm. */
-        picoquic_per_ack_state_t ack_state = { 0 };
-        /* TODO Refactor ack_state to include last sent packet number. */
-        ack_state.nb_bytes_acknowledged = packet->path_packet_number;
-        /* TODO Check performance impact to update pacing data (picoquic_update_pacing_data()) for each packet sent. */
-        cnx->congestion_alg->alg_notify(cnx, path_x,
-                picoquic_congestion_notification_sent,
-                &ack_state, current_time);
-
+        path_x->is_cc_data_updated = 1;
         /* Update the pacing data */
         picoquic_update_pacing_after_send(path_x, length, current_time);
     }

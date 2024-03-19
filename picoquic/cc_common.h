@@ -31,6 +31,14 @@ extern "C" {
 #define PICOQUIC_SMOOTHED_LOSS_FACTOR (1.0/16.0)
 #define PICOQUIC_SMOOTHED_LOSS_THRESHOLD (0.15)
 
+#define CC_DEBUG_PRINTF(path_x, fmt, ...) \
+    printf("\033[0;32m%-15" PRIu64 "%-15" PRIu64 "%-7s" fmt "\033[0m", picoquic_get_quic_time(path_x->cnx->quic), \
+        picoquic_get_quic_time(path_x->cnx->quic) - picoquic_get_cnx_start_time(path_x->cnx), (path_x->cnx->client_mode) ? "CLIENT" : "SERVER", \
+        __VA_ARGS__)
+
+#define CC_DEBUG_DUMP(fmt, ...) \
+    printf("\033[0;37m%37s" fmt "\033[0m", "", __VA_ARGS__)
+
 typedef struct st_picoquic_min_max_rtt_t {
     uint64_t last_rtt_sample_time;
     uint64_t rtt_filtered_min;
@@ -66,6 +74,13 @@ void picoquic_hystart_increase(picoquic_path_t* path_x, picoquic_min_max_rtt_t* 
  * careful resume
  */
 
+#define CR_DEBUG_PRINTF(path_x, fmt, ...) \
+    printf("\033[0;35m%-15" PRIu64 "%-15" PRIu64 "%-7s" fmt "\033[0m", picoquic_get_quic_time(path_x->cnx->quic), \
+    picoquic_get_quic_time(path_x->cnx->quic) - picoquic_get_cnx_start_time(path_x->cnx), (path_x->cnx->client_mode) ? "CLIENT" : "SERVER", __VA_ARGS__)
+
+#define CR_DEBUG_DUMP(fmt, ...) \
+    printf("\033[0;37m%37s" fmt "\033[0m", "", __VA_ARGS__)
+
 typedef enum {
     picoquic_cr_alg_observe = 0,
     picoquic_cr_alg_recon, // = 1,
@@ -81,15 +96,19 @@ typedef struct st_picoquic_cr_state_t {
     uint64_t saved_rtt; /* observed RTT from previous connection in us */
     uint64_t saved_cwnd; /* observed CWND from previous connection in bytes */
 
-    uint64_t unval_mark; /* lower end of the jump in bytes. */
-    uint64_t val_mark; /* upper end of the jump in bytes. */
+    uint64_t cr_mark; /* cr_mark in bytes. */
+    uint64_t jump_cwnd; /* jump window size in bytes. */
     uint64_t pipesize; /* pipesize in bytes */
 
     uint64_t start_of_epoch; /* start timestamp of current state in us */
     uint64_t previous_start_of_epoch; /* start timestamp of previous state in us */
+
+    /* return values, :/ */
+    uint64_t cwin;
+    uint64_t ssthresh; /* TODO and pass slow start threshold by return value? */
 } picoquic_cr_state_t;
 
-void picoquic_cr_reset(picoquic_cr_state_t* cr_state, uint64_t current_time);
+void picoquic_cr_reset(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
 
 /* NOTE recon phase entered on init only */
 void picoquic_cr_enter_recon(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time);
@@ -121,9 +140,10 @@ typedef struct st_picoquic_newreno_sim_state_t {
     uint64_t ssthresh;
     uint64_t recovery_start;
     uint64_t recovery_sequence;
+    picoquic_cr_state_t cr_state;
 } picoquic_newreno_sim_state_t;
 
-void picoquic_newreno_sim_reset(picoquic_newreno_sim_state_t* nrss);
+void picoquic_newreno_sim_reset(picoquic_newreno_sim_state_t* nrss, picoquic_path_t* path_x, uint64_t current_time);
 
 void picoquic_newreno_sim_notify(
     picoquic_newreno_sim_state_t* nr_state,
