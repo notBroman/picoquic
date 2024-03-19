@@ -532,7 +532,7 @@ static uint64_t careful_resume_run(picoquic_test_tls_api_ctx_t* test_ctx, uint64
 
     /* Connect to server */
     if (ret == 0) {
-        ret = tls_api_connection_loop(test_ctx, (loss_mask == 0x0) ? NULL : &loss_mask, 0, simulated_time);
+        ret = tls_api_connection_loop(test_ctx, (loss_mask == 0x0) ? NULL : &loss_mask, test_ctx->s_to_c_link->queue_delay_max, simulated_time);
     }
 
     /* Prepare to send data */
@@ -728,6 +728,7 @@ static int careful_resume_test_one_ex(picoquic_congestion_algorithm_t* ccalgo,
         test_ctx->s_to_c_link->jitter = 0;
         test_ctx->s_to_c_link->microsec_latency = latency_0rtt;
         test_ctx->s_to_c_link->picosec_per_byte = (1000000ull * 8) / mbps_down_0rtt;
+        test_ctx->s_to_c_link->queue_delay_max = latency_0rtt/10;
 
         /* Create new client context. */
         test_ctx->cnx_client = picoquic_create_cnx(test_ctx->qclient,
@@ -853,6 +854,18 @@ int careful_resume_loss_in_unval_test() {
                                       0, 3000000000);
 }
 
+/** @name               congestion_loss
+ *
+ *  @brief              Congestion due to jumping to high
+ */
+
+int careful_resume_congestion_loss_test(){
+    return careful_resume_test_one_ex(picoquic_cubic_algorithm,
+                                      25000000, 6, 120, 300000ull, 0, 0x0,
+                                      25000000, 6, 50, 300000ull, 0, 0x0,
+                                      0, 3000000000);
+}
+
 /** @name               path_changed
  *
  *  @brief              rtt_min of 0-RTT connection changes to saved_rtt / 2 or saved_rtt * 10
@@ -875,3 +888,4 @@ int careful_resume_path_changed_test() {
 
     return ret;
 }
+

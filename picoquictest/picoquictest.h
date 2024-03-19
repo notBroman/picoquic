@@ -534,6 +534,7 @@ int careful_resume_loss_in_validate_test();
 int careful_resume_loss_in_unval_test();
 int careful_resume_path_changed_test();
 int careful_resume_unit_test();
+int careful_resume_congestion_loss_test();
 
 int cplusplustest();
 

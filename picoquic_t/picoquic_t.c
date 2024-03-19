@@ -497,7 +497,8 @@ static const picoquic_test_def_t test_table[] = {
     { "careful_resume_loss_in_validate", careful_resume_loss_in_validate_test },
     { "careful_resume_loss_in_unval", careful_resume_loss_in_unval_test },
     { "careful_resume_path_changed", careful_resume_path_changed_test },
-    { "careful_resume_unit", careful_resume_unit_test }
+    { "careful_resume_unit", careful_resume_unit_test },
+    { "careful_resume_congestion_loss", careful_resume_congestion_loss_test }
 };
 
 static size_t const nb_tests = sizeof(test_table) / sizeof(picoquic_test_def_t);
