@@ -502,8 +502,9 @@ static const picoquic_test_def_t test_table[] = {
 };
 
 static size_t const nb_tests = sizeof(test_table) / sizeof(picoquic_test_def_t);
+int get_test_number(char const*);
 
-static int do_one_test(size_t i, FILE* F)
+static int do_one_test(size_t i, FILE* F, int data_size)
 {
     int ret = 0;
 
@@ -515,13 +516,14 @@ static int do_one_test(size_t i, FILE* F)
 
         fflush(F);
 
-        ret = test_table[i].test_fn();
+        ret = i == get_test_number("careful_resume_congestion_loss") ? test_table[i].test_fn(data_size*1000) : test_table[i].test_fn();
         if (ret == 0) {
             fprintf(F, "    Success.\n");
         } else {
             fprintf(F, "    Fails, error: %d.\n", ret);
         }
     }
+    printf("TEST\n");
 
     fflush(F);
 
@@ -556,6 +558,7 @@ int usage(char const * argv0)
     fprintf(stderr, "  -r                Retry failed tests with debug print enabled.\n");
     fprintf(stderr, "  -h                Print this help message\n");
     fprintf(stderr, "  -S solution_dir   Set the path to the source files to find the default files\n");
+    fprintf(stderr, "  -a nnn            Set the number of Kilobytes that should be sent in the test case\n");
 
     return -1;
 }
@@ -596,6 +599,7 @@ int main(int argc, char** argv)
     int cnx_ddos_interval = 0;
     size_t first_test = 0;
     size_t last_test = 10000;
+    int data_size = 100;
 
     char const* cnx_ddos_dir = NULL;
 
@@ -610,7 +614,7 @@ int main(int argc, char** argv)
     {
         memset(test_status, 0, nb_tests * sizeof(test_status_t));
 
-        while (ret == 0 && (opt = getopt(argc, argv, "c:d:f:F:s:S:x:o:nrh")) != -1) {
+        while (ret == 0 && (opt = getopt(argc, argv, "c:d:f:F:s:S:x:o:nrha:")) != -1) {
             switch (opt) {
             case 'x': {
                 optind--;
@@ -650,6 +654,15 @@ int main(int argc, char** argv)
                         first_test = (size_t)i_first_test;
                         last_test = (size_t)i_last_test;
                     }
+                }
+                break;
+            case 'a':
+                if (optind + 1 > argc) {
+                    fprintf(stderr, "option requires more arguments -- o\n");
+                    ret = usage(argv[0]);
+                } else{
+                    data_size = atoi(optarg);
+                    fprintf(stdout, "%d\n", data_size);
                 }
                 break;
             case 'f':
@@ -772,7 +785,7 @@ int main(int argc, char** argv)
                     (do_fuzz && strcmp(test_table[i].test_name, "fuzz") == 0)) {
                     /* Run the stress test or the fuzz test as specified */
                     nb_test_tried++;
-                    if (do_one_test(i, stdout) != 0) {
+                    if (do_one_test(i, stdout, data_size) != 0) {
                         test_status[i] = test_failed;
                         nb_test_failed++;
                         ret = -1;
@@ -837,7 +850,7 @@ int main(int argc, char** argv)
             for (size_t i = 0; i < nb_tests; i++) {
                 if (test_status[i] == test_not_run) {
                     nb_test_tried++;
-                    if (i >= first_test && i <= last_test && do_one_test(i, stdout) != 0) {
+                    if (i >= first_test && i <= last_test && do_one_test(i, stdout, data_size) != 0) {
                         test_status[i] = test_failed;
                         nb_test_failed++;
                         ret = -1;
@@ -886,7 +899,7 @@ int main(int argc, char** argv)
                         }
                         else {
                             fprintf(stdout, "Retrying %s:\n", test_table[i].test_name);
-                            if (do_one_test(i, stdout) != 0) {
+                            if (do_one_test(i, stdout, data_size) != 0) {
                                 test_status[i] = test_failed;
                                 ret = -1;
                             }
