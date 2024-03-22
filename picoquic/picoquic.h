@@ -1453,6 +1453,8 @@ void picoquic_set_default_congestion_algorithm_by_name(picoquic_quic_t* quic, ch
 
 void picoquic_set_congestion_algorithm(picoquic_cnx_t* cnx, picoquic_congestion_algorithm_t const* algo);
 
+void picoquic_set_careful_resume(picoquic_quic_t* quic, int do_careful_resume);
+
 /* Special code for Wi-Fi network. These networks are subject to occasional
  * "suspension", for power saving reasons. If the suspension is too long,
  * it causes transmission to stop after cngestion control credits are

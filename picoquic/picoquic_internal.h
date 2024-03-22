@@ -53,7 +53,7 @@ extern "C" {
 #define PICOQUIC_INITIAL_RTT 250000ull /* 250 ms */
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
-#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 250000ull /* 250 ms */
+#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 1000000ull /* 250 ms */ /* increased to avoid packet loss in handshake */
 #define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 1000000ull /* one second */
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 2000000ull /* two seconds */
 #define PICOQUIC_MIN_RETRANSMIT_TIMER 50000ull /* 50 ms */
@@ -668,6 +668,7 @@ typedef struct st_picoquic_quic_t {
     unsigned int test_large_server_flight : 1; /* Use TP to ensure server flight is at least 8K */
     unsigned int is_port_blocking_disabled : 1; /* Do not check client port on incoming connections */
     unsigned int are_path_callbacks_enabled : 1; /* Enable path specific callbacks by default */
+    unsigned int use_careful_resume : 1; /* Use hystart++ instead of hystart. */
 
     picoquic_stateless_packet_t* pending_stateless_packet;
 
