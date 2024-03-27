@@ -496,8 +496,10 @@ static int careful_resume_test_one_ex(picoquic_congestion_algorithm_t* ccalgo, s
         test_ctx->c_to_s_link->microsec_latency = latency;
         test_ctx->c_to_s_link->picosec_per_byte = picoseq_per_byte_up;
         test_ctx->s_to_c_link->microsec_latency = latency;
+        test_ctx->c_to_s_link->queue_delay_max = latency/10;
         test_ctx->s_to_c_link->picosec_per_byte = picoseq_per_byte_down;
         test_ctx->s_to_c_link->jitter = jitter;
+        test_ctx->s_to_c_link->queue_delay_max = latency/10;
 
         picoquic_set_qlog(test_ctx->qserver, ".");
         picoquic_set_qlog(test_ctx->qclient, ".");
@@ -652,6 +654,7 @@ int careful_resume_path_changed_test() {
 
 /* TODO */
 /* careful_resume_test_one(picoquic_cubic_algorithm, 50000, 50, 5, 0, 0x40, 1000); */
+<<<<<<< HEAD
 
 /** @name               careful_resume_cubic_overshoot
  *
@@ -688,3 +691,5 @@ int careful_resume_newreno_undershoot_test() {
     uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
     return careful_resume_test_one_ex(picoquic_newreno_algorithm, 30000000, bdp / 2, 600000, 10, 6, 300000, 0, 0x0, 27500000);
 }
+=======
+>>>>>>> 3db8cd03 (adjust queue length)
