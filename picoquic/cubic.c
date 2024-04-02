@@ -103,7 +103,7 @@ void picoquic_cubic_enter_avoidance(
     picoquic_cubic_state_t* cubic_state,
     uint64_t current_time)
 {
-    CC_DEBUG_DUMP("picoquic_cubic_enter_avoidance()\n", NULL);
+    CC_DEBUG_DUMP("picoquic_cubic_enter_avoidance()\n");
     cubic_state->K = picoquic_cubic_root(cubic_state->W_max*(1.0 - cubic_state->beta) / cubic_state->C);
     cubic_state->alg_state = picoquic_cubic_alg_congestion_avoidance;
     cubic_state->start_of_epoch = current_time;
@@ -221,7 +221,7 @@ void picoquic_cubic_notify(
             case picoquic_cubic_alg_slow_start:
                 switch (notification) {
                 case picoquic_congestion_notification_acknowledgement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_acknowledgement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_acknowledgement\n");
                     CC_DEBUG_DUMP("nb_bytes_acknowledged=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
                     if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time) {
                         /* +------+---------+---------+------------+-----------+------------+
@@ -259,7 +259,7 @@ void picoquic_cubic_notify(
                 case picoquic_congestion_notification_repeat:
                 case picoquic_congestion_notification_ecn_ec:
                 case picoquic_congestion_notification_timeout:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     /* For compatibility with Linux-TCP deployments, we implement a filter so
                      * Cubic will only back off after repeated losses, not just after a single loss.
@@ -302,7 +302,7 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_spurious_repeat:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_spurious_repeat\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_spurious_repeat\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     /* Reset CWIN based on ssthresh, not based on current value. */
                     picoquic_cubic_correct_spurious(path_x, cubic_state, current_time);
@@ -311,7 +311,7 @@ void picoquic_cubic_notify(
                     cubic_state->cr_state.cwin = path_x->cwin;
                     break;
                 case picoquic_congestion_notification_rtt_measurement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_rtt_measurement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_rtt_measurement\n");
                     CC_DEBUG_DUMP("rtt_measurement=%" PRIu64 ", one_way_delay=%" PRIu64 "\n", ack_state->rtt_measurement, ack_state->one_way_delay);
                     /* Using RTT increases as signal to get out of initial slow start */
                     if (cubic_state->ssthresh == UINT64_MAX &&
@@ -353,7 +353,7 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_cwin_blocked:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_cwin_blocked\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_cwin_blocked\n");
 
                     /* Nofify careful resume. */
                     picoquic_cr_notify(&cubic_state->cr_state, cnx, path_x, notification, ack_state, current_time);
@@ -361,12 +361,12 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_reset:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_reset\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_reset\n");
                     picoquic_cubic_reset(cubic_state, path_x, current_time);
                     break;
                 case picoquic_congestion_notification_seed_cwin:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_seed_cwin\n", NULL);
-                    CC_DEBUG_DUMP("seed_cwin=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | picoquic_congestion_notification_seed_cwin\n");
+                    CC_DEBUG_DUMP("seed_cwin=%" PRIu64 ", seed_rtt=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged, ack_state->rtt_measurement);
 
                     /* Nofify careful resume. */
                     picoquic_cr_notify(&cubic_state->cr_state, cnx, path_x, notification, ack_state, current_time);
@@ -374,7 +374,7 @@ void picoquic_cubic_notify(
 
                     break;
                 default:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | default\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_slow_start | default\n");
                     break;
             }
             break;
@@ -383,7 +383,7 @@ void picoquic_cubic_notify(
 			 * ignore it, unless it is a spurious retransmit detection */
             switch (notification) {
                 case picoquic_congestion_notification_acknowledgement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_acknowledgement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_acknowledgement\n");
                 CC_DEBUG_DUMP("nb_bytes_acknowledged=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
                     /* TODO review this part */
                     if (cubic_state->cr_state.alg_state == picoquic_cr_alg_recon || cubic_state->cr_state.alg_state == picoquic_cr_alg_validate || cubic_state->cr_state.alg_state == picoquic_cr_alg_normal) {
@@ -404,7 +404,7 @@ void picoquic_cubic_notify(
                     path_x->cwin = cubic_state->cr_state.cwin;
                     break;
                 case picoquic_congestion_notification_spurious_repeat:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_spurious_repeat\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_spurious_repeat\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     picoquic_cubic_correct_spurious(path_x, cubic_state, current_time);
 
@@ -414,7 +414,7 @@ void picoquic_cubic_notify(
                 case picoquic_congestion_notification_repeat:
                 case picoquic_congestion_notification_ecn_ec:
                 case picoquic_congestion_notification_timeout:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     /* For compatibility with Linux-TCP deployments, we implement a filter so
                      * Cubic will only back off after repeated losses, not just after a single loss.
@@ -432,11 +432,11 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_rtt_measurement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_rtt_measurement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_rtt_measurement\n");
                     CC_DEBUG_DUMP("rtt_measurement=%" PRIu64 ", one_way_delay=%" PRIu64 "\n", ack_state->rtt_measurement, ack_state->one_way_delay);
                     break;
                 case picoquic_congestion_notification_cwin_blocked:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_cwin_blocked\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_cwin_blocked\n");
 
                     /* Nofify careful resume. */
                     picoquic_cr_notify(&cubic_state->cr_state, cnx, path_x, notification, ack_state, current_time);
@@ -444,11 +444,11 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_reset:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_reset\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_reset\n");
                     picoquic_cubic_reset(cubic_state, path_x, current_time);
                     break;
                 case picoquic_congestion_notification_seed_cwin:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_seed_cwin\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | picoquic_congestion_notification_seed_cwin\n");
                     CC_DEBUG_DUMP("seed_cwin=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
 
                     /* Nofify careful resume. */
@@ -457,7 +457,7 @@ void picoquic_cubic_notify(
 
                     break;
                 default:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | default\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_recovery | default\n");
                     /* ignore */
                     break;
             }
@@ -465,7 +465,7 @@ void picoquic_cubic_notify(
         case picoquic_cubic_alg_congestion_avoidance:
             switch (notification) {
                 case picoquic_congestion_notification_acknowledgement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_acknowledgement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_acknowledgement\n");
                     CC_DEBUG_DUMP("nb_bytes_acknowledged=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
                     if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time) {
                         if (cubic_state->cr_state.alg_state == picoquic_cr_alg_normal || cubic_state->cr_state.alg_state == picoquic_cr_alg_recon || cubic_state->cr_state.alg_state == picoquic_cr_alg_validate) {
@@ -503,7 +503,7 @@ void picoquic_cubic_notify(
                 case picoquic_congestion_notification_repeat:
                 case picoquic_congestion_notification_ecn_ec:
                 case picoquic_congestion_notification_timeout:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_repeat | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_timeout\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     /* For compatibility with Linux-TCP deployments, we implement a filter so
                      * Cubic will only back off after repeated losses, not just after a single loss.
@@ -523,7 +523,7 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_spurious_repeat:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_spurious_repeat\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_spurious_repeat\n");
                     CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
                     picoquic_cubic_correct_spurious(path_x, cubic_state, current_time);
 
@@ -532,7 +532,7 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_cwin_blocked:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_cwin_blocked\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_cwin_blocked\n");
 
                     /* Nofify careful resume. */
                     picoquic_cr_notify(&cubic_state->cr_state, cnx, path_x, notification, ack_state, current_time);
@@ -540,15 +540,15 @@ void picoquic_cubic_notify(
 
                     break;
                 case picoquic_congestion_notification_rtt_measurement:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_rtt_measurement\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_rtt_measurement\n");
                     CC_DEBUG_DUMP("rtt_measurement=%" PRIu64 ", one_way_delay=%" PRIu64 "\n", ack_state->rtt_measurement, ack_state->one_way_delay);
                     break;
                 case picoquic_congestion_notification_reset:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_reset\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_reset\n");
                     picoquic_cubic_reset(cubic_state, path_x, current_time);
                     break;
                 case picoquic_congestion_notification_seed_cwin:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_seed_cwin\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | picoquic_congestion_notification_seed_cwin\n");
                     CC_DEBUG_DUMP("seed_cwin=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
 
                     /* Nofify careful resume. */
@@ -557,7 +557,7 @@ void picoquic_cubic_notify(
 
                     break;
                 default:
-                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | default\n", NULL);
+                    CC_DEBUG_PRINTF(path_x, "picoquic_cubic_alg_congestion_avoidance | default\n");
                     /* ignore */
                     break;
             }

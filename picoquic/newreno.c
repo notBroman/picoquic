@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cc_common.h"
+#include "newreno.h"
 
 #define NB_RTT_RENO 4
 
@@ -35,7 +36,7 @@
 
 void picoquic_newreno_sim_reset(picoquic_newreno_sim_state_t * nrss, picoquic_path_t* path_x, uint64_t current_time)
 {
-    CC_DEBUG_DUMP("picoquic_newreno_sim_reset()\n", NULL);
+    CC_DEBUG_DUMP("picoquic_newreno_sim_reset()\n");
     /* Initialize the state of the congestion control algorithm */
     memset(nrss, 0, sizeof(picoquic_newreno_sim_state_t));
     nrss->alg_state = picoquic_newreno_alg_slow_start;
@@ -123,7 +124,7 @@ void picoquic_newreno_sim_notify(
             }
             /* if cnx->cwin exceeds SSTHRESH, exit and go to CA */
             if (nr_state->cwin >= nr_state->ssthresh) {
-                CC_DEBUG_DUMP("SLOW START -> AVOIDANCE", NULL);
+                CC_DEBUG_DUMP("SLOW START -> AVOIDANCE");
                 nr_state->alg_state = picoquic_newreno_alg_congestion_avoidance;
                 CC_DEBUG_DUMP("alg_state=%d\n", nr_state->alg_state);
             }
@@ -228,12 +229,7 @@ void picoquic_newreno_sim_notify(
 /* Actual implementation of New Reno, when used as a stand alone algorithm
  */
 
-typedef struct st_picoquic_newreno_state_t {
-    picoquic_newreno_sim_state_t nrss;
-    picoquic_min_max_rtt_t rtt_filter;
-} picoquic_newreno_state_t;
-
-static void picoquic_newreno_reset(picoquic_newreno_state_t* nr_state, picoquic_path_t* path_x, uint64_t current_time)
+void picoquic_newreno_reset(picoquic_newreno_state_t* nr_state, picoquic_path_t* path_x, uint64_t current_time)
 {
     CC_DEBUG_PRINTF(path_x, "picoquic_newreno_reset(unique_path_id=%" PRIu64 ")\n", path_x->unique_path_id);
     memset(nr_state, 0, sizeof(picoquic_newreno_state_t));
@@ -241,7 +237,7 @@ static void picoquic_newreno_reset(picoquic_newreno_state_t* nr_state, picoquic_
     path_x->cwin = nr_state->nrss.cwin;
 }
 
-static void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time)
+void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time)
 {
     CC_DEBUG_PRINTF(path_x, "picoquic_newreno_init(unique_path_id=%" PRIu64 ")\n", path_x->unique_path_id);
     /* Initialize the state of the congestion control algorithm */
@@ -266,7 +262,7 @@ static void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x,
  * to condensate all that in a single API, which could be shared
  * by many different congestion control algorithms.
  */
-static void picoquic_newreno_notify(
+void picoquic_newreno_notify(
     picoquic_cnx_t * cnx,
     picoquic_path_t* path_x,
     picoquic_congestion_notification_t notification,
@@ -280,7 +276,7 @@ static void picoquic_newreno_notify(
     if (nr_state != NULL) {
         switch (notification) {
         case picoquic_congestion_notification_acknowledgement:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_acknowledgement\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_acknowledgement\n");
             CC_DEBUG_DUMP("nb_bytes_acknowledged=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
 
             /* In slow start we estimate the bandwidth and jump. But we don't want to jump. */
@@ -302,33 +298,33 @@ static void picoquic_newreno_notify(
             break;
         /* TODO Three cases below can be merged together. Split only for debug log. */
         case picoquic_congestion_notification_seed_cwin:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin\n", NULL);
-            CC_DEBUG_DUMP("seed_cwin=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin\n");
+            CC_DEBUG_DUMP("seed_cwin=%" PRIu64 ", seed_rtt=%" PRIu64 "\n", ack_state->nb_bytes_acknowledged, ack_state->rtt_measurement);
             picoquic_newreno_sim_notify(&nr_state->nrss, cnx, path_x, notification, ack_state, current_time);
             path_x->cwin = nr_state->nrss.cwin;
             break;
         case picoquic_congestion_notification_cwin_blocked:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_cwin_blocked\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_cwin_blocked\n");
             picoquic_newreno_sim_notify(&nr_state->nrss, cnx, path_x, notification, ack_state, current_time);
             path_x->cwin = nr_state->nrss.cwin;
             break;
         case picoquic_congestion_notification_ecn_ec:
         case picoquic_congestion_notification_repeat:
         case picoquic_congestion_notification_timeout:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin | picoquic_congestion_notification_cwin_blocked | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_repeat | picoquic_congestion_notification_timeout\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin | picoquic_congestion_notification_cwin_blocked | picoquic_congestion_notification_ecn_ec | picoquic_congestion_notification_repeat | picoquic_congestion_notification_timeout\n");
             CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
             picoquic_newreno_sim_notify(&nr_state->nrss, cnx, path_x, notification, ack_state, current_time);
             path_x->cwin = nr_state->nrss.cwin;
             break;
         case picoquic_congestion_notification_spurious_repeat:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_spurious_repeat\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_spurious_repeat\n");
             CC_DEBUG_DUMP("lost_packet_number=%" PRIu64 "\n", ack_state->lost_packet_number);
             picoquic_newreno_sim_notify(&nr_state->nrss, cnx, path_x, notification, ack_state, current_time);
             path_x->cwin = nr_state->nrss.cwin;
             path_x->is_ssthresh_initialized = 1;
             break;
         case picoquic_congestion_notification_rtt_measurement:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_rtt_measurement\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_rtt_measurement\n");
             CC_DEBUG_DUMP("rtt_measurement=%" PRIu64 ", one_way_delay=%" PRIu64 "\n", ack_state->rtt_measurement, ack_state->one_way_delay);
             /* Using RTT increases as signal to get out of initial slow start */
             if (nr_state->nrss.alg_state == picoquic_newreno_alg_slow_start &&
@@ -366,11 +362,11 @@ static void picoquic_newreno_notify(
                 }
             break;
         case picoquic_congestion_notification_reset:
-            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_reset\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_reset\n");
             picoquic_newreno_reset(nr_state, path_x, current_time);
             break;
         default:
-            CC_DEBUG_PRINTF(path_x, "default\n", NULL);
+            CC_DEBUG_PRINTF(path_x, "default\n");
             /* ignore */
             break;
         }
@@ -382,7 +378,7 @@ static void picoquic_newreno_notify(
 }
 
 /* Release the state of the congestion control algorithm */
-static void picoquic_newreno_delete(picoquic_path_t* path_x)
+void picoquic_newreno_delete(picoquic_path_t* path_x)
 {
     CC_DEBUG_PRINTF(path_x, "picoquic_newreno_delete(unique_path_id=%" PRIu64 ")\n", path_x->unique_path_id);
     if (path_x->congestion_alg_state != NULL) {

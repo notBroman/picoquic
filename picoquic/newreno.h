@@ -15,8 +15,8 @@ typedef struct st_picoquic_newreno_state_t {
     picoquic_min_max_rtt_t rtt_filter;
 } picoquic_newreno_state_t;
 
-static void picoquic_newreno_reset(picoquic_newreno_state_t* nr_state, picoquic_path_t* path_x, uint64_t current_time);
-static void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time);
+void picoquic_newreno_reset(picoquic_newreno_state_t* nr_state, picoquic_path_t* path_x, uint64_t current_time);
+void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time);
 
 /*
  * Properly implementing New Reno requires managing a number of
@@ -24,7 +24,7 @@ static void picoquic_newreno_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x,
  * to condensate all that in a single API, which could be shared
  * by many different congestion control algorithms.
  */
-static void picoquic_newreno_notify(
+void picoquic_newreno_notify(
     picoquic_cnx_t * cnx,
     picoquic_path_t* path_x,
     picoquic_congestion_notification_t notification,
