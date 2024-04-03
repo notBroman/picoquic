@@ -91,6 +91,7 @@ uint64_t picoquic_current_retransmit_timer(picoquic_cnx_t* cnx, picoquic_path_t 
 static void picoquic_validate_bdp_seed(picoquic_cnx_t* cnx, picoquic_path_t* path_x, uint64_t rtt_sample, uint64_t current_time)
 {
     /* TODO enter normal phase if path could not be validated. */
+    /* TODO "rtt_not_validated" trigger for qlog. */
     if (path_x == cnx->path[0] && cnx->seed_cwin != 0 &&
         !cnx->cwin_notified_from_seed &&
         rtt_sample >= cnx->seed_rtt_min / 2 &&
@@ -104,6 +105,7 @@ static void picoquic_validate_bdp_seed(picoquic_cnx_t* cnx, picoquic_path_t* pat
             memcmp(ip_addr, cnx->seed_ip_addr, ip_addr_length) == 0) {
             picoquic_per_ack_state_t ack_state = { 0 };
             ack_state.nb_bytes_acknowledged = (uint64_t)cnx->seed_cwin;
+            ack_state.rtt_measurement = (uint64_t)cnx->seed_rtt_min;
             cnx->cwin_notified_from_seed = 1;
             cnx->congestion_alg->alg_notify(cnx, path_x,
                 picoquic_congestion_notification_seed_cwin,

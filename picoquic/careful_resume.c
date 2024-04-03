@@ -15,8 +15,9 @@
 void picoquic_cr_reset(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time) {
     CR_DEBUG_PRINTF(path_x, "picoquic_cr_reset(unique_path_id=%" PRIu64 ")\n", path_x->unique_path_id);
     memset(cr_state, 0, sizeof(picoquic_cr_state_t));
+    cr_state->previous_alg_state = picoquic_cr_alg_normal;
     /* Start in recon phase. */
-    cr_state->alg_state = picoquic_cr_alg_recon;
+    cr_state->alg_state = picoquic_cr_alg_normal;
 
     cr_state->saved_cwnd = UINT64_MAX;
     /* saved_rtt is not part of the careful resume state because it is part of the ticket. */
@@ -32,9 +33,6 @@ void picoquic_cr_reset(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, u
 
     cr_state->cwin = PICOQUIC_CWIN_INITIAL;
     cr_state->ssthresh = UINT64_MAX;
-
-    /* not necessary, just to make clear */
-    picoquic_cr_enter_recon(cr_state, path_x, current_time);
 }
 
 /* Notify careful resume context. */
@@ -79,6 +77,9 @@ void picoquic_cr_notify(
                      * moment there exists no send notification.
                      */
                     if ((current_time - cr_state->start_of_epoch) > path_x->rtt_min || path_x->delivered > cr_state->cr_mark) {
+                        if (path_x->delivered > cr_state->cr_mark) {
+                            cr_state->trigger = picoquic_cr_trigger_congestion_window_limited;
+                        }
                         CR_DEBUG_DUMP("(current_time - cr_state->start_of_epoch)=%" PRIu64 " > path_x->rtt_min=%" PRIu64 " || delivered=%" PRIu64 " > cr_mark=%" PRIu64 ", > 1 RTT OR first unvalidated packet ACKed\n", (current_time - cr_state->start_of_epoch), path_x->rtt_min, path_x->delivered, cr_state->cr_mark);
                         picoquic_cr_enter_validate(cr_state, path_x, current_time);
                     }
@@ -99,6 +100,7 @@ void picoquic_cr_notify(
                     if (path_x->delivered >= cr_state->jump_cwnd) {
                         CR_DEBUG_DUMP("delivered=%" PRIu64 " > cr_mark=%" PRIu64 ", last packet that was sent in the "
                             "unvalidated phase ACKed\n", path_x->delivered, cr_state->jump_cwnd);
+                        cr_state->trigger = picoquic_cr_trigger_cr_mark_acknowledged;
                         picoquic_cr_enter_normal(cr_state, path_x, current_time);
                     }
                     break;
@@ -122,6 +124,7 @@ void picoquic_cr_notify(
                     if (path_x->delivered >= cr_state->jump_cwnd) {
                         CR_DEBUG_DUMP("delivered=%" PRIu64 " > cr_mark=%" PRIu64 "\n", path_x->delivered,
                             cr_state->jump_cwnd);
+                        cr_state->trigger = picoquic_cr_trigger_cr_mark_acknowledged;
                         cr_state->ssthresh = cr_state->pipesize;
                         picoquic_cr_enter_normal(cr_state, path_x, current_time);
                     }
@@ -133,6 +136,7 @@ void picoquic_cr_notify(
         case picoquic_congestion_notification_repeat:
         case picoquic_congestion_notification_ecn_ec:
         case picoquic_congestion_notification_timeout:
+            cr_state->trigger = (notification == picoquic_congestion_notification_ecn_ec) ? picoquic_cr_trigger_ECN_CE : picoquic_cr_trigger_packet_loss;
             switch (cr_state->alg_state) {
                 case picoquic_cr_alg_recon:
                     /* RECON: Normal CC method CR is not allowed */
@@ -185,9 +189,18 @@ void picoquic_cr_notify(
             /* careful resume state resets with congestion control algorithm. */
             break;
         case picoquic_congestion_notification_seed_cwin:
-            CR_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin\n", NULL);
-            cr_state->saved_cwnd = ack_state->nb_bytes_acknowledged; /* saved_cwnd */
-            CR_DEBUG_DUMP("saved_cwnd=%" PRIu64 "\n", cr_state->saved_cwnd);
+            CR_DEBUG_PRINTF(path_x, "picoquic_congestion_notification_seed_cwin\n");
+            switch (cr_state->alg_state) {
+                case picoquic_cr_alg_normal:
+                    cr_state->saved_cwnd = ack_state->nb_bytes_acknowledged; /* saved_cwnd */
+                    cr_state->saved_rtt = ack_state->rtt_measurement; /* saved_rtt */
+                    CR_DEBUG_DUMP("saved_cwnd=%" PRIu64 "\n", cr_state->saved_cwnd);
+
+                    picoquic_cr_enter_recon(cr_state, path_x, current_time);
+                    break;
+                default:
+                    break;
+            }
             break;
         default:
             break;
@@ -202,6 +215,8 @@ void picoquic_cr_enter_recon(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
                     cr_state->cwin, path_x->bytes_in_transit, path_x->delivered, path_x->rtt_min,
                     cr_state->saved_cwnd, cr_state->cr_mark, cr_state->jump_cwnd, cr_state->pipesize, cr_state->ssthresh);
     CR_DEBUG_PRINTF(path_x, "%s", "picoquic_resume_enter_recon()\n");
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_recon;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
@@ -209,6 +224,9 @@ void picoquic_cr_enter_recon(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
 
     /* RECON: CWND=IW */
     cr_state->cwin = PICOQUIC_CWIN_INITIAL;
+
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
 
     CR_DEBUG_DUMP("cwin=%" PRIu64 ", bytes_in_transit=%" PRIu64 ", delivered=%" PRIu64 ", rtt_min=%" PRIu64 ", "
                   "saved_cwnd=%" PRIu64 ", cr_mark=%" PRIu64 ", jump_cwnd=%" PRIu64 ", pipesize=%" PRIu64 ", ssthresh=%" PRIu64"\n",
@@ -224,6 +242,8 @@ void picoquic_cr_enter_unval(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
                     cr_state->cwin, path_x->bytes_in_transit, path_x->delivered, path_x->rtt_min,
                     cr_state->saved_cwnd, cr_state->cr_mark, cr_state->jump_cwnd, cr_state->pipesize, cr_state->ssthresh);
     CR_DEBUG_PRINTF(path_x, "picoquic_cr_enter_unval(unique_path_id=%" PRIu64 ")\n", path_x->unique_path_id);
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_unval;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
@@ -247,6 +267,9 @@ void picoquic_cr_enter_unval(picoquic_cr_state_t* cr_state, picoquic_path_t* pat
         than or equal to the (saved_cwnd/2). CWND = jump_cwnd. */
     cr_state->cwin = cr_state->saved_cwnd / 2;
 
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
+
     CR_DEBUG_DUMP("cwin=%" PRIu64 ", bytes_in_transit=%" PRIu64 ", delivered=%" PRIu64 ", rtt_min=%" PRIu64 ", "
                   "saved_cwnd=%" PRIu64 ", cr_mark=%" PRIu64 ", jump_cwnd=%" PRIu64 ", pipesize=%" PRIu64 ", ssthresh=%" PRIu64"\n",
                     cr_state->cwin, path_x->bytes_in_transit, path_x->delivered, path_x->rtt_min,
@@ -262,6 +285,8 @@ void picoquic_cr_enter_validate(picoquic_cr_state_t* cr_state, picoquic_path_t* 
                     cr_state->saved_cwnd, cr_state->cr_mark, cr_state->jump_cwnd, cr_state->pipesize, cr_state->ssthresh);
     CR_DEBUG_PRINTF(path_x, "picoquic_cr_enter_validate(unique_path_id=%" PRIu64 ")\n",
            path_x->unique_path_id);
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_validate;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
@@ -281,6 +306,9 @@ void picoquic_cr_enter_validate(picoquic_cr_state_t* cr_state, picoquic_path_t* 
         picoquic_cr_enter_normal(cr_state, path_x, current_time);
     }
 
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
+
     CR_DEBUG_DUMP("cwin=%" PRIu64 ", bytes_in_transit=%" PRIu64 ", delivered=%" PRIu64 ", rtt_min=%" PRIu64 ", "
                   "saved_cwnd=%" PRIu64 ", cr_mark=%" PRIu64 ", jump_cwnd=%" PRIu64 ", pipesize=%" PRIu64 ", ssthresh=%" PRIu64"\n",
                     cr_state->cwin, path_x->bytes_in_transit, path_x->delivered, path_x->rtt_min,
@@ -296,6 +324,8 @@ void picoquic_cr_enter_retreat(picoquic_cr_state_t* cr_state, picoquic_path_t* p
                     cr_state->saved_cwnd, cr_state->cr_mark, cr_state->jump_cwnd, cr_state->pipesize, cr_state->ssthresh);
     CR_DEBUG_PRINTF(path_x, "picoquic_cr_enter_retreat(unique_path_id=%" PRIu64 ")\n",
            path_x->unique_path_id);
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_retreat;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
@@ -328,6 +358,9 @@ void picoquic_cr_enter_retreat(picoquic_cr_state_t* cr_state, picoquic_path_t* p
     path_x->cnx->seed_rtt_min = 0;
     /* TODO is_seeded, ip_addr, ticket, ... ? */
 
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
+
     CR_DEBUG_DUMP("cwin=%" PRIu64 ", bytes_in_transit=%" PRIu64 ", delivered=%" PRIu64 ", rtt_min=%" PRIu64 ", "
                   "saved_cwnd=%" PRIu64 ", cr_mark=%" PRIu64 ", jump_cwnd=%" PRIu64 ", pipesize=%" PRIu64 ", ssthresh=%" PRIu64"\n",
                     cr_state->cwin, path_x->bytes_in_transit, path_x->delivered, path_x->rtt_min,
@@ -343,10 +376,15 @@ void picoquic_cr_enter_normal(picoquic_cr_state_t* cr_state, picoquic_path_t* pa
                     cr_state->saved_cwnd, cr_state->cr_mark, cr_state->jump_cwnd, cr_state->pipesize, cr_state->ssthresh);
     CR_DEBUG_PRINTF(path_x, "picoquic_cr_enter_normal(unique_path_id=%" PRIu64 ")\n",
            path_x->unique_path_id);
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_normal;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
     cr_state->start_of_epoch = current_time;
+
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
 
     CR_DEBUG_DUMP("cwin=%" PRIu64 ", bytes_in_transit=%" PRIu64 ", delivered=%" PRIu64 ", rtt_min=%" PRIu64 ", "
                   "saved_cwnd=%" PRIu64 ", cr_mark=%" PRIu64 ", jump_cwnd=%" PRIu64 ", pipesize=%" PRIu64 ", ssthresh=%" PRIu64"\n",
@@ -355,8 +393,13 @@ void picoquic_cr_enter_normal(picoquic_cr_state_t* cr_state, picoquic_path_t* pa
 }
 
 void picoquic_cr_enter_observe(picoquic_cr_state_t* cr_state, picoquic_path_t* path_x, uint64_t current_time) {
+
+    cr_state->previous_alg_state = cr_state->alg_state;
     cr_state->alg_state = picoquic_cr_alg_observe;
 
     cr_state->previous_start_of_epoch = cr_state->start_of_epoch;
     cr_state->start_of_epoch = current_time;
+
+    /* Notify qlog. */
+    path_x->is_cr_data_updated = 1;
 }

@@ -1069,6 +1069,7 @@ typedef struct st_picoquic_path_t {
     unsigned int path_is_preferred_path : 1;
     unsigned int is_nat_challenge : 1;
     unsigned int is_cc_data_updated : 1;
+    unsigned int is_cr_data_updated : 1;
     unsigned int is_multipath_probe_needed : 1;
     unsigned int was_local_cnxid_retired : 1;
     unsigned int is_ssthresh_initialized : 1;

@@ -34,10 +34,10 @@ extern "C" {
 #define CC_DEBUG_PRINTF(path_x, fmt, ...) \
     printf("\033[0;32m%-15" PRIu64 "%-15" PRIu64 "%-7s" fmt "\033[0m", picoquic_get_quic_time(path_x->cnx->quic), \
         picoquic_get_quic_time(path_x->cnx->quic) - picoquic_get_cnx_start_time(path_x->cnx), (path_x->cnx->client_mode) ? "CLIENT" : "SERVER", \
-        __VA_ARGS__)
+        ##__VA_ARGS__)
 
 #define CC_DEBUG_DUMP(fmt, ...) \
-    printf("\033[0;37m%37s" fmt "\033[0m", "", __VA_ARGS__)
+    printf("\033[0;37m%37s" fmt "\033[0m", "", ##__VA_ARGS__)
 
 typedef struct st_picoquic_min_max_rtt_t {
     uint64_t last_rtt_sample_time;
@@ -76,10 +76,19 @@ void picoquic_hystart_increase(picoquic_path_t* path_x, picoquic_min_max_rtt_t* 
 
 #define CR_DEBUG_PRINTF(path_x, fmt, ...) \
     printf("\033[0;35m%-15" PRIu64 "%-15" PRIu64 "%-7s" fmt "\033[0m", picoquic_get_quic_time(path_x->cnx->quic), \
-    picoquic_get_quic_time(path_x->cnx->quic) - picoquic_get_cnx_start_time(path_x->cnx), (path_x->cnx->client_mode) ? "CLIENT" : "SERVER", __VA_ARGS__)
+    picoquic_get_quic_time(path_x->cnx->quic) - picoquic_get_cnx_start_time(path_x->cnx), (path_x->cnx->client_mode) ? "CLIENT" : "SERVER", ##__VA_ARGS__)
 
 #define CR_DEBUG_DUMP(fmt, ...) \
-    printf("\033[0;37m%37s" fmt "\033[0m", "", __VA_ARGS__)
+    printf("\033[0;37m%37s" fmt "\033[0m", "", ##__VA_ARGS__)
+
+typedef enum {
+    picoquic_cr_trigger_packet_loss,
+    picoquic_cr_trigger_congestion_window_limited,
+    picoquic_cr_trigger_cr_mark_acknowledged,
+    picoquic_cr_trigger_rtt_not_validated,
+    picoquic_cr_trigger_ECN_CE,
+    picoquic_cr_trigger_exit_recovery
+} picoquic_cr_trigger_t;
 
 typedef enum {
     picoquic_cr_alg_observe = 0,
@@ -91,6 +100,7 @@ typedef enum {
 } picoquic_cr_alg_state_t;
 
 typedef struct st_picoquic_cr_state_t {
+    picoquic_cr_alg_state_t previous_alg_state; /* previous state of careful resume. only for qlog and logging. */
     picoquic_cr_alg_state_t alg_state; /* current state of the careful resume algorithm */
 
     uint64_t saved_rtt; /* observed RTT from previous connection in us */
@@ -102,6 +112,8 @@ typedef struct st_picoquic_cr_state_t {
 
     uint64_t start_of_epoch; /* start timestamp of current state in us */
     uint64_t previous_start_of_epoch; /* start timestamp of previous state in us */
+
+    picoquic_cr_trigger_t trigger; /* last trigger triggered. */
 
     /* return values, :/ */
     uint64_t cwin;
