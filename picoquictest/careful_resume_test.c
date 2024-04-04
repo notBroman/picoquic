@@ -614,6 +614,7 @@ int careful_resume_data_limited_in_validate_test() {
  *
  *  @brief              Packet #3 lost in recon phase.
  */
+/* TODO check why seed is not set. */
 int careful_resume_loss_in_recon_test() {
     return careful_resume_test_one(picoquic_cubic_algorithm, 100000, 50, 5, 300000, 0, 0x2, 5750000);
 }
@@ -651,3 +652,39 @@ int careful_resume_path_changed_test() {
 
 /* TODO */
 /* careful_resume_test_one(picoquic_cubic_algorithm, 50000, 50, 5, 0, 0x40, 1000); */
+
+/** @name               careful_resume_cubic_overshoot
+ *
+ *  @brief              saved_cwnd = 10 * BDP
+ */
+int careful_resume_cubic_overshoot_test() {
+    uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
+    return careful_resume_test_one_ex(picoquic_cubic_algorithm, 30000000, bdp * 10, 600000, 10, 6, 300000, 0, 0x0, 27000000);
+}
+
+/** @name               careful_resume_newreno_overshoot
+ *
+ *  @brief              saved_cwnd = 10 * BDP
+ */
+int careful_resume_newreno_overshoot_test() {
+    uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
+    return careful_resume_test_one_ex(picoquic_newreno_algorithm, 30000000, bdp * 10, 600000, 10, 6, 300000, 0, 0x0, 27500000);
+}
+
+/** @name               careful_resume_cubic_undershoot
+ *
+ *  @brief              saved_cwnd = BDP / 2
+ */
+int careful_resume_cubic_undershoot_test() {
+    uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
+    return careful_resume_test_one_ex(picoquic_cubic_algorithm, 30000000, bdp / 2, 600000, 10, 6, 300000, 0, 0x0, 27500000);
+}
+
+/** @name               careful_resume_cubic_undershoot
+ *
+ *  @brief              saved_cwnd = BDP / 2
+ */
+int careful_resume_newreno_undershoot_test() {
+    uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
+    return careful_resume_test_one_ex(picoquic_newreno_algorithm, 30000000, bdp / 2, 600000, 10, 6, 300000, 0, 0x0, 27500000);
+}

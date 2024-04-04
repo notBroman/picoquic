@@ -537,6 +537,10 @@ int careful_resume_loss_in_recon_test();
 int careful_resume_loss_in_validate_test();
 int careful_resume_loss_in_unval_test();
 int careful_resume_path_changed_test();
+int careful_resume_cubic_overshoot_test();
+int careful_resume_newreno_overshoot_test();
+int careful_resume_cubic_undershoot_test();
+int careful_resume_newreno_undershoot_test();
 /*int careful_resume_unit_test();*/
 
 int cplusplustest();
