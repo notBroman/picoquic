@@ -145,6 +145,7 @@ static const picoquic_test_def_t test_table[] = {
     { "vn_tp", vn_tp_test },
     { "vn_compat", vn_compat_test },
     { "stream_rank", stream_rank_test },
+    { "provide_stream_buffer", provide_stream_buffer_test },
     { "transport_param", transport_param_test },
     { "tls_api_sni", tls_api_sni_test },
     { "tls_api_alpn", tls_api_alpn_test },
@@ -421,6 +422,7 @@ static const picoquic_test_def_t test_table[] = {
     { "mbedtls", mbedtls_test },
     { "mbedtls_crypto", mbedtls_crypto_test },
 #endif
+    { "openssl_cert", openssl_cert_test },
     { "monopath_basic", monopath_basic_test },
     { "monopath_hole", monopath_hole_test },
     { "monopath_rotation", monopath_rotation_test },
@@ -498,7 +500,11 @@ static const picoquic_test_def_t test_table[] = {
     { "careful_resume_loss_in_recon", careful_resume_loss_in_recon_test },
     { "careful_resume_loss_in_validate", careful_resume_loss_in_validate_test },
     { "careful_resume_loss_in_unval", careful_resume_loss_in_unval_test },
-    { "careful_resume_path_changed", careful_resume_path_changed_test }
+    { "careful_resume_path_changed", careful_resume_path_changed_test },
+    {"careful_resume_cubic_overshoot", careful_resume_cubic_overshoot_test },
+    {"careful_resume_newreno_overshoot", careful_resume_newreno_overshoot_test },
+    {"careful_resume_cubic_undershoot", careful_resume_cubic_undershoot_test },
+    {"careful_resume_newreno_undershoot", careful_resume_newreno_undershoot_test }
     /*{ "careful_resume_unit", careful_resume_unit_test }*/
 };
 
