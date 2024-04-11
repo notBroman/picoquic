@@ -529,7 +529,7 @@ static int careful_resume_test_one_ex(picoquic_congestion_algorithm_t* ccalgo, s
             picoquic_seed_bandwidth(test_ctx->cnx_server, (saved_rtt == 0) ? estimated_rtt : saved_rtt, (saved_cwnd == 0) ? estimated_bdp : saved_cwnd,
                 ip_addr, ip_addr_length);
             /* Enable careful resume. */
-            picoquic_set_careful_resume(test_ctx->qserver, 1);
+            picoquic_set_careful_resume(test_ctx->qserver, 0);
 
             /* Prepare to send data */
             if (ret == 0) {
@@ -569,7 +569,8 @@ static int careful_resume_test_one(picoquic_congestion_algorithm_t* ccalgo, size
  *  @brief              Simple jump.
  */
 int careful_resume_cubic_test() {
-    return careful_resume_test_one(picoquic_cubic_algorithm, 50000000, 50, 5, 300000, 0, 0x0, 30000000000);
+    uint64_t bdp = 750000*5; /* 50 Mbit/s * 600 ms = 750*5 kB */
+    return careful_resume_test_one_ex(picoquic_cubic_algorithm, 30000000, bdp, 600000, 50, 6, 300000, 0, 0x0, 27000000);
 }
 
 /** @name               cubic_loss
@@ -654,7 +655,6 @@ int careful_resume_path_changed_test() {
 
 /* TODO */
 /* careful_resume_test_one(picoquic_cubic_algorithm, 50000, 50, 5, 0, 0x40, 1000); */
-<<<<<<< HEAD
 
 /** @name               careful_resume_cubic_overshoot
  *
@@ -691,5 +691,3 @@ int careful_resume_newreno_undershoot_test() {
     uint64_t bdp = 750000; /* 10 Mbit/s * 600 ms = 750 kB */
     return careful_resume_test_one_ex(picoquic_newreno_algorithm, 30000000, bdp / 2, 600000, 10, 6, 300000, 0, 0x0, 27500000);
 }
-=======
->>>>>>> 3db8cd03 (adjust queue length)
