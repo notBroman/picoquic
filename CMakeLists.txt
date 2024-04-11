@@ -386,6 +386,10 @@ if(BUILD_TESTING AND picoquic_BUILD_TESTS)
     target_link_libraries(picoquic_ct PRIVATE picoquic-test ${MBEDTLS_LIBRARIES})
     set_picoquic_compile_settings(picoquic_ct)
 
+    add_executable(picoquic_sim simulator/sim.c)
+    target_link_libraries(picoquic_sim PRIVATE picoquic-test ${MBEDTLS_LIBRARIES})
+    set_picoquic_compile_settings(picoquic_sim)
+
     add_executable(picohttp_ct
         picohttp_t/picohttp_t.c
         ${PICOHTTP_TEST_LIBRARY_FILES})
